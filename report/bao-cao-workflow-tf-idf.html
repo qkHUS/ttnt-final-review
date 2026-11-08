@@ -1,0 +1,1108 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>bao-cao-workflow-tf-idf</title><style>
+@page { size: A4; margin: 16mm 14mm 18mm; }
+* { box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'Times New Roman', sans-serif; font-size: 10pt;
+       line-height: 1.5; color: #1c2733; margin: 0; }
+h1 { font-size: 15.5pt; color: #123a5f; border-bottom: 2.5px solid #123a5f;
+     padding-bottom: 4px; margin: 20px 0 10px; page-break-before: always; }
+h1:first-of-type { page-break-before: avoid; margin-top: 0; }
+h2 { font-size: 12.5pt; color: #1a5276; margin: 16px 0 6px; border-bottom: 1px solid #cfd8e3;
+     padding-bottom: 2px; }
+h3 { font-size: 11pt; color: #21618c; margin: 12px 0 5px; }
+p { margin: 5px 0; }
+ul, ol { margin: 5px 0 5px 4px; padding-left: 20px; }
+li { margin: 2.5px 0; }
+strong { color: #0d2f4f; }
+code { font-family: Consolas, 'Courier New', monospace; font-size: 8.8pt;
+       background: #eef1f5; padding: 0.5px 3px; border-radius: 3px; }
+pre { background: #f4f6f9; border: 1px solid #d5dce6; border-radius: 4px;
+      padding: 8px 10px; margin: 7px 0; white-space: pre-wrap; word-wrap: break-word; }
+pre code { background: none; padding: 0; font-size: 8.4pt; line-height: 1.38; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 8.9pt; }
+th, td { border: 1px solid #b8c4d0; padding: 3px 7px; text-align: left;
+         vertical-align: top; }
+th { background: #dbe7f3; color: #123a5f; }
+tr:nth-child(even) td { background: #f6f9fc; }
+blockquote { border-left: 3.5px solid #7fa8c9; background: #f2f7fb; margin: 8px 0;
+             padding: 5px 12px; color: #33475b; }
+hr { border: 0; border-top: 1px solid #c9d4e0; margin: 14px 0; }
+a { color: #1a5276; text-decoration: none; }
+</style></head><body><h1>Báo cáo Workflow: Chuẩn bị dữ liệu, Trích xuất kỹ năng và Chấm điểm phù hợp CV–JD bằng TF-IDF</h1>
+<blockquote>
+<p><strong>Phạm vi báo cáo.</strong> Đây là báo cáo phần việc của <strong>Đặng Ngọc Quyền</strong> trong dự án nhóm
+MAT1206E — "CV/Resume Parser and Job Matching System": (1) chuẩn bị dữ liệu, (2) trích xuất
+kỹ năng từ CV và bản mô tả công việc, (3) tính điểm phù hợp (matching score) và phân loại
+fit / no-fit. Toàn bộ pipeline chạy bằng Python + scikit-learn, có thể tái tạo từ đầu bằng
+các lệnh trong mục 6.1.</p>
+</blockquote>
+<hr />
+<h2>1. Tóm tắt</h2>
+<p>Dự án nhóm xây dựng một hệ thống so khớp CV (sơ yếu lý lịch) với JD (job description — bản
+mô tả công việc) để trả lời câu hỏi: <em>ứng viên này có phù hợp với vị trí này không?</em> Phần
+của tôi giải quyết ba bước nền tảng của hệ thống:</p>
+<ol>
+<li><strong>Chuẩn bị dữ liệu.</strong> Từ ~94 MB CSV thô (80.017 hàng train), làm sạch, khử trùng lặp,
+   che thông tin cá nhân (PII masking), gán <code>doc_id</code> băm md5, dựng bảng cặp (pair) cho 93.733
+   cặp CV–JD và tách thành kho tài liệu riêng: 643 CV + 351 JD.</li>
+<li><strong>Trích xuất kỹ năng.</strong> Dùng <strong>TF-IDF</strong> (term frequency–inverse document frequency — tần
+   suất từ × nghịch đảo tần suất tài liệu, một trọng số đo "từ này quan trọng thế nào trong
+   văn bản này") kết hợp từ điển 7.137 kỹ năng để rút ra danh sách kỹ năng có cấu trúc dạng
+   JSON từ văn bản CV/JD. Kết quả trên tập đánh giá held-out (tập để dành, không dùng khi
+   xây hệ thống): <strong>P@25 = 51.0%</strong> (51% trong 25 kỹ năng trả ra là đúng theo ground truth —
+   đáp án chuẩn), <strong>R@25 = 44.7%</strong> (bắt được 44.7% kỹ năng có trong đáp án), và khi tính trên
+   toàn bộ danh sách trả ra thì <strong>R@full = 74.6%</strong>.</li>
+<li><strong>Chấm điểm và phân loại fit.</strong> Với mỗi cặp CV–JD, tính <strong>cosine similarity</strong> (độ tương
+   đồng cosin giữa hai vectơ văn bản) và <strong>skill coverage</strong> (tỷ lệ kỹ năng yêu cầu của JD có
+   mặt trong CV). Trên tập test 13.716 cặp: riêng cosine đã đạt <strong>AUC = 0.805</strong> cho bài toán
+   "Good Fit vs còn lại"; cộng thêm 2 đặc trưng qua <strong>hồi quy logistic</strong> đạt <strong>AUC = 0.810,
+   PR-AUC = 0.443</strong> (gấp ~3.6 lần tỉ lệ dương 12.2% — tức mô hình học được tín hiệu thật);
+   phân 3 vùng (No/Potential/Good) đạt accuracy 63.4% và macro-F1 0.516, vượt baseline đoán
+   toàn "No Fit" (61.7%).</li>
+</ol>
+<p>Mọi số liệu đều sinh ra từ script trong repo, có quy trình chọn ngưỡng trên tập train và đo
+riêng trên tập test, kèm bảng thí nghiệm cho từng quyết định thiết kế (mục 7).</p>
+<hr />
+<h2>2. Bài toán, động lực và phạm vi</h2>
+<h3>2.1 Bài toán</h3>
+<p>Đầu vào: kho CSV chứa hàng chục nghìn bản ghi — mỗi bản ghi là một đoạn văn CV hoặc JD, thường
+kèm nhãn quan hệ giữa cặp CV–JD (<code>No Fit</code> / <code>Potential Fit</code> / <code>Good Fit</code>).</p>
+<p>Cần đưa ra:</p>
+<ol>
+<li><strong>Danh sách kỹ năng có cấu trúc</strong> cho từng CV và từng JD (kỹ năng bắt buộc, kỹ năng ưu
+   tiên, số năm kinh nghiệm, học vấn…), ở dạng JSON — thứ mà các phần sau của nhóm (sắp xếp
+   ứng viên, giao diện) tiêu thụ được.</li>
+<li><strong>Một điểm số</strong> cho mỗi cặp CV–JD, để xếp hạng ứng viên và phân loại fit / no-fit.</li>
+</ol>
+<h3>2.2 Vì sao TF-IDF?</h3>
+<p>Với phạm vi môn học (nhập môn trí tuệ nhân tạo, không giả định người học đã làm deep learning
+cho ngôn ngữ) và tài nguyên tính toán, TF-IDF là lựa chọn hợp lý vì:</p>
+<ul>
+<li><strong>Vật lý được hiểu hết.</strong> Mỗi con số trong pipeline đều tính tay ra được (mục 4.3 có ví dụ
+  tính từng bước). Với mô hình nhúng ngữ nghĩa (embedding như BERT), cần GPU và cột mốc của
+  đồng nghiệp mới so sánh được.</li>
+<li><strong>Không cần huấn luyện nặng.</strong> TF-IDF chỉ đếm từ trên chính kho dữ liệu (unsupervised —
+  không cần nhãn).</li>
+<li><strong>Đủ làm nền.</strong> Trích xuất kỹ năng bằng TF-IDF + từ điển đạt R@full ≈ 74.6% trên GT; cosine
+  đạt AUC ≈ 0.81 cho phân loại Good Fit — đều là tín hiệu thật, đo được, có thể dùng làm
+  baseline để đồng nghiệp nâng cấp bằng NER (named entity recognition — nhận diện thực thể)
+  hoặc embedding sau này.</li>
+</ul>
+<h3>2.3 Phạm vi</h3>
+<ul>
+<li><strong>Trong phạm vi:</strong> làm sạch dữ liệu, dựng cặp, từ điển kỹ năng, trích xuất kỹ năng JSON,
+  đặc trưng điểm (cosine + coverage), hồi quy logistic, đánh giá.</li>
+<li><strong>Ngoài phạm vi:</strong> phân tích ngữ nghĩa sâu (embedding), học sâu, UI. Phần parser đa mục
+  đích (chat multi-task) của dataset được ghi nhận nhưng bỏ — dùng 172 cặp contact làm ground
+  truth duy nhất cho đồng nghiệp (nêu trong <code>data/README.md</code>).</li>
+</ul>
+<hr />
+<h2>3. Bối cảnh và công trình liên quan</h2>
+<ul>
+<li><strong>TF-IDF</strong> ra đời từ họ công trình của Gerard Salton về hệ truy vấn thông tin; khuyến nghị
+  biến thể chuẩn hoá log của tf và công thức idf phổ biến nhất được hệ thống hoá trong
+  Salton &amp; Buckley (1988) [4]. Robertson (2004) [5] lý giải vì sao idf là thước đo "độ ngạc
+  nhiên khi gặp từ" và là nền của BM25. Sách giáo khoa chuẩn là Manning–Raghavan–Schütze,
+  <em>Introduction to Information Retrieval</em> (2008), chương 6 [3].</li>
+<li><strong>Độ đo tương đồng:</strong> cosine similarity là chuẩn của không gian vectơ từ (vector space
+  model) [3]. Jaccard (1901) [6] đưa ra độ đo giao/trên/hợp — tôi dùng cho thí nghiệm so sánh.</li>
+<li><strong>Đánh giá mô hình nhị phân:</strong> precision/recall/F1 và ma trận nhầm lẫn (confusion matrix)
+  theo Sokolova &amp; Lapalme [9]; ROC-AUC có phân tích chuẩn trong Fawcett (2006) [7]; Davis &amp;
+  Goadrich (2006) [8] chỉ ra khi dữ liệu lệch nhãn (imbalanced — một lớp áp đảo), đường
+  Precision–Recall mô tả chất lượng trung thực hơn ROC — đúng tình huống của dataset này
+  (73% No Fit).</li>
+<li><strong>Trích xuất kỹ năng:</strong> các công trình NER chuyên sâu như SkillSpan (Zhang et al., 2022
+  [9']) gắn nhãn kỹ năng trong tin tuyển dụng bằng mô hình transformer; tôi dùng bộ nhãn
+  SkillSpan như <strong>một nguồn vào</strong> cho từ điển kỹ năng (không huấn luyện NER). Từ điển còn
+  ghép từ job-skill-set (batuhanmtl) và ESCO — phân loại kỹ năng chính thức của EU [10].</li>
+<li><strong>Môi trường tính toán:</strong> scikit-learn [1][2][12][13], pandas, pypdf; toàn bộ chạy CPU
+  thường trong vài phút.</li>
+</ul>
+<blockquote>
+<p>Chú giải trích dẫn: các ô [n] dẫn đến mục 12. Tài liệu tham khảo; "9'" là SkillSpan nằm
+cạnh [9] trong danh sách.</p>
+</blockquote>
+<hr />
+<h2>4. Lý thuyết</h2>
+<p>Mục này trình bày lý thuyết đầy đủ ký hiệu, theo cách một môn học máy trình bày: định nghĩa
+→ công thức → ví dụ số → liên hệ code.</p>
+<h3>4.1 Ký hiệu dùng trong toàn bộ báo cáo</h3>
+<table>
+<thead>
+<tr>
+<th>Ký hiệu</th>
+<th>Ý nghĩa</th>
+<th>Ví dụ / giá trị trong dự án</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>d</code></td>
+<td>một tài liệu (document) — một CV hoặc một JD đã làm sạch</td>
+<td><code>doc_id = c94f1a9af5c3</code></td>
+</tr>
+<tr>
+<td><code>N</code></td>
+<td>số tài liệu trong kho</td>
+<td>994 (643 CV + 351 JD)</td>
+</tr>
+<tr>
+<td><code>V</code></td>
+<td>từ vựng (vocabulary) — tập n-gram khác nhau sau khi loại từ hiếm</td>
+<td>32.704 n-gram</td>
+</tr>
+<tr>
+<td><code>t</code></td>
+<td>một term (term = mục từ) — một từ hoặc n-gram thuộc <code>V</code></td>
+<td><code>peachtree</code>, <code>cpa firm</code></td>
+</tr>
+<tr>
+<td><code>tf(t, d)</code></td>
+<td>term frequency — số lần <code>t</code> xuất hiện trong <code>d</code></td>
+<td>tf(peachtree, c94f…)=2</td>
+</tr>
+<tr>
+<td><code>df(t)</code></td>
+<td>document frequency — số tài liệu chứa <code>t</code></td>
+<td>df(peachtree)=15</td>
+</tr>
+<tr>
+<td><code>idf(t)</code></td>
+<td>inverse document frequency — nghịch đảo tần suất tài liệu</td>
+<td>công thức (4.2)</td>
+</tr>
+<tr>
+<td><code>w(t, d)</code></td>
+<td>trọng số TF-IDF của <code>t</code> trong <code>d</code></td>
+<td>công thức (4.3)</td>
+</tr>
+<tr>
+<td><code>x_d</code></td>
+<td>vectơ đặc trưng của tài liệu <code>d</code>, chiều <code>|V|</code></td>
+<td>x_d ∈ ℝ^32704</td>
+</tr>
+<tr>
+<td><code>‖x‖₂</code></td>
+<td>chuẩn (norm) L2 của vectơ: <code>√(Σᵢ xᵢ²)</code></td>
+<td>= 1 sau chuẩn hoá</td>
+</tr>
+<tr>
+<td><code>cos(x, y)</code></td>
+<td>cosine similarity giữa hai vectơ</td>
+<td>công thức (4.6)</td>
+</tr>
+<tr>
+<td><code>S_d</code></td>
+<td>danh sách kỹ năng đã trích xuất của <code>d</code></td>
+<td>25 kỹ năng max</td>
+</tr>
+<tr>
+<td><code>R_jd</code></td>
+<td>tập kỹ năng bắt buộc của JD <code>jd</code></td>
+<td>31.3 kỹ năng TB</td>
+</tr>
+<tr>
+<td><code>cov(S, R)</code></td>
+<td>coverage — tỷ lệ phần tử của <code>R</code> có trong <code>S</code></td>
+<td>công thức (4.7)</td>
+</tr>
+<tr>
+<td><code>P, R, F1</code></td>
+<td>precision, recall, F1-score</td>
+<td>công thức (4.10)–(4.12)</td>
+</tr>
+<tr>
+<td><code>AUC</code></td>
+<td>diện tích dưới đường ROC</td>
+<td>0.805 (cosine, Good)</td>
+</tr>
+<tr>
+<td><code>t*</code></td>
+<td>ngưỡng (threshold) tốt nhất theo F1, chọn trên train</td>
+<td>0.0639 (cosine)</td>
+</tr>
+<tr>
+<td><code>ŷ</code></td>
+<td>nhãn dự đoán; <code>y</code> là nhãn thật</td>
+<td>y ∈ {No, Potential, Good}</td>
+</tr>
+<tr>
+<td><code>σ(z)</code></td>
+<td>hàm sigmoid: <code>1/(1+e^(−z))</code></td>
+<td>công thức (4.9)</td>
+</tr>
+<tr>
+<td><code>θ = (w, b)</code></td>
+<td>tham số hồi quy logistic</td>
+<td>w_cosine = +53.914</td>
+</tr>
+</tbody>
+</table>
+<p>Quy ước: chữ <code>jd</code> chỉ tài liệu bản mô tả công việc, <code>cv</code> chỉ tài liệu sơ yếu lý lịch. "Kỹ
+năng" (skill) là một cụm từ danh nghĩa chỉ năng lực chuyên môn — ví dụ <code>sql server</code>,
+<code>communication</code> (kỹ năng mềm cũng được gắn nhãn như vậy trong ESCO).</p>
+<h3>4.2 Từ văn bản sang n-gram (tokenization)</h3>
+<p>Trước khi đếm, văn bản phải tách thành <strong>token</strong> (từ tố — mảnh văn bản nhỏ nhất, ở đây là
+một từ thường hoặc cụm 2 từ). Quy trình:</p>
+<ol>
+<li>Chữ thường toàn bộ (<code>peachtree</code> ≡ <code>Peachtree</code>).</li>
+<li>Loại dấu và ký tự không phải chữ-số (<code>sklearn</code> giữ lại ký tự <code>+ . # ' -</code> trong <code>word</code>
+   pattern mặc định — nhờ vậy <code>c++</code>, <code>c#</code>, <code>asp.net</code> sống sót).</li>
+<li>Cắt theo khoảng trắng và dấu câu → token đơn.</li>
+<li>Ghép <strong>n-gram</strong>: cụm n token liền kề. Tôi dùng <code>ngram_range=(1, 2)</code> — cả token đơn lẫn
+   cặp. Lý do: rất nhiều kỹ năng là 2 từ (<code>sql server</code>, <code>machine learning</code>, <code>project
+   management</code>); chỉ dùng token đơn sẽ phá vỡ nghĩa.</li>
+</ol>
+<p>Sau đó <code>min_df = 3</code> loại mọi term xuất hiện trong ít hơn 3 tài liệu — khử nhiễu đánh máy và
+tên riêng vô nghĩa, giảm từ vựng từ hàng trăm nghìn xuống 32.704.</p>
+<h3>4.3 TF-IDF — trọng số từ</h3>
+<p>Trực giác: một từ quan trọng với một văn bản nếu (a) nó xuất hiện nhiều trong văn bản đó
+(<strong>tf</strong>) và (b) nó không xuất hiện tràn lan trong mọi văn bản (<strong>idf</strong> — nếu tràn lan thì nó
+không giúp phân biệt).</p>
+<p><strong>Công thức idf (biến thể smooth của scikit-learn [1]):</strong></p>
+<pre><code class="language-text">idf(t) = ln( (1 + N) / (1 + df(t)) ) + 1          (4.2)
+</code></pre>
+<ul>
+<li><code>ln</code> là logarit tự nhiên. Cộng 1 vào tử/mẫu ("smoothing") để tránh chia 0 khi df = N, và
+  cộng 1 cuối để idf luôn ≥ 1 (không có term có trọng số âm).</li>
+<li>Ví dụ số trên kho N = 994: từ <code>peachtree</code> (phần mềm kế toán, hiếm) có df = 15:
+  <code>idf = ln(995/16) + 1 = ln(62.19) + 1 = 4.13 + 1 = 5.13</code>.
+  Từ <code>experienced</code> xuất hiện trong 798/994 tài liệu: <code>idf = ln(995/799) + 1 = 0.219 + 1 =
+  1.22</code> — gần 1, tức gần như vô dụng để phân biệt.</li>
+</ul>
+<p><strong>Công thức tf (biến thể sublinear của scikit-learn):</strong></p>
+<pre><code class="language-text">tf(t, d) = 1 + ln( raw_count(t, d) )   nếu raw_count &gt; 0; ngược lại 0    (4.2a)
+</code></pre>
+<p>Dùng log để tần suất tăng 10 lần không làm trọng số tăng 10 lần (từ xuất hiện 100 lần chưa
+chắc quan trọng gấp 100 lần từ xuất hiện 10 lần).</p>
+<p><strong>Trọng số TF-IDF:</strong></p>
+<pre><code class="language-text">w(t, d) = tf(t, d) · idf(t)                        (4.3)
+</code></pre>
+<p><strong>Ví dụ tính tay, CV <code>c94f1a9af5c3</code> (kế toán):</strong></p>
+<table>
+<thead>
+<tr>
+<th>term</th>
+<th>raw count</th>
+<th>tf = 1+ln(c)</th>
+<th>df</th>
+<th>idf</th>
+<th>w = tf·idf (chưa chuẩn hoá)</th>
+<th>w sau chuẩn hoá L2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>peachtree</td>
+<td>2</td>
+<td>1+0.693=1.693</td>
+<td>15</td>
+<td>5.13</td>
+<td>8.68</td>
+<td>0.1695</td>
+</tr>
+<tr>
+<td>cpa</td>
+<td>3</td>
+<td>1+1.099=2.099</td>
+<td>55</td>
+<td>3.88</td>
+<td>8.13</td>
+<td>0.1588</td>
+</tr>
+<tr>
+<td>accounting</td>
+<td>7</td>
+<td>1+1.946=2.946</td>
+<td>310</td>
+<td>2.16</td>
+<td>6.37</td>
+<td>0.1178</td>
+</tr>
+</tbody>
+</table>
+<p>Chuẩn hoá L2 (mục 4.4) chia mỗi <code>w</code> cho <code>‖x‖₂ = 7.29</code> — ba con số cột cuối là kết quả thật
+in ra từ pipeline (<code>TfidfVectorizer(sublinear_tf=True, min_df=3, ngram_range=(1,2))</code>).</p>
+<p>Đối chiếu trực giác: <code>peachtree</code> (hiếm) thắng <code>accounting</code> (phổ biến) dù xuất hiện ít hơn —
+idf "thưởng" cho tính đặc thù. Còn <code>experienced</code>: raw count xuất hiện nhưng chỉ như <strong>tiền
+tố</strong> trong cụm <code>experienced professional</code>, không là token riêng → w = 0.0000. Đây chính là
+điểm yếu của token hóa theo từ — và là lý do tôi ghép thêm bước khớp từ điển (mục 4.5).</p>
+<h3>4.4 Chuẩn hoá L2 và cosine similarity</h3>
+<p>Sau khi tính <code>w(t, d)</code> cho mọi term, mỗi tài liệu là một vectơ <code>x_d ∈ ℝ^|V|</code>. <strong>Chuẩn hoá L2</strong>
+chia toàn bộ vectơ cho độ dài của chính nó:</p>
+<pre><code class="language-text">x̂_d = x_d / ‖x_d‖₂ ,  ‖x‖₂ = √( Σᵢ xᵢ² )           (4.4)
+</code></pre>
+<p>→ mọi vectơ đều nằm trên mặt cầu đơn vị (độ dài = 1). Đo độ giống hai tài liệu bằng
+<strong>cosine similarity</strong> — cosin của góc giữa hai vectơ:</p>
+<pre><code class="language-text">cos(x, y) = (x·y) / (‖x‖‖y‖)                        (4.5)
+</code></pre>
+<p>Khi cả hai đã chuẩn hoá L2, mẫu số = 1 nên:</p>
+<pre><code class="language-text">cos(x̂, ŷ) = x̂ · ŷ = Σᵢ x̂ᵢŷᵢ                        (4.6)
+</code></pre>
+<p>→ chỉ còn một phép nhân-v_cộng (dot product), rất nhanh với ma trận thưa (sparse — ma trận
+đa số phần tử là 0, chỉ lưu phần tử khác 0). Trong <code>match_score.py</code> tôi dùng đúng tính chất
+này: <code>C[crow].multiply(J[jrow]).sum(axis=1)</code> — nhân từng phần tử rồi cộng cột, thu được
+93.733 cosine trong một dòng code. Nên nhớ: <strong>cosine bất kể độ dài văn bản</strong> — CV dài 1 trang
+hay 5 trang đều được "nói cùng một thang" với JD; đó là lý do chọn cosine thay vì dot product
+thô.</p>
+<p><strong>Khoảng giá trị:</strong> 0 (không dùng chung term nào) đến 1 (giống hệt). Thực tế trên cặp CV–JD
+thật: 0.03–0.22 (vì CV và JD nói chuyện khác nhau — JD gọn, CV dài và lan man), trung bình
+theo nhãn: Good Fit 0.0654 &gt; Potential Fit 0.0503 &gt; No Fit 0.0326 — thứ tự đúng mong đợi.</p>
+<h3>4.5 Từ điển kỹ năng và quét presence (regex lookaround)</h3>
+<p>TF-IDF trả ra <strong>term</strong> — nhưng hệ thống cần <strong>skill</strong>. Khác biệt: term là thống kê, skill là
+đối tượng nghiệp vụ. Cầu nối là một <strong>từ điển kỹ năng (lexicon)</strong> gồm 7.137 cụm — tự gieo
+hạt từ các khối "Skills" của chính 643 CV (1.146 cụm, lọc stop-word — từ rác như tên bang
+Mỹ) + 5.991 cụm từ 3 nguồn ngoài (job-skill-set, SkillSpan, ESCO; trùng nhau 117 cụm đã gộp).</p>
+<p>Hai bước dùng từ điển:</p>
+<p><strong>(a) Lọc kết quả TF-IDF.</strong> Lấy top-200 term điểm cao nhất của mỗi tài liệu, giữ những term
+nằm trong từ điển, dừng ở 25. Nhờ vậy kết quả luôn là "cụm từ trông như kỹ năng", không phải
+rác thống kê như <code>accountant 01</code> (ngày dính chữ).</p>
+<p><strong>(b) Quét presence bằng regex với lookaround.</strong> Đếm xem từng kỹ năng từ điển có mặt trong
+văn bản không — bằng <strong>regex</strong> (biểu thức chính quy — mẫu ký tự để tìm trong chuỗi) với
+<strong>lookaround</strong> (cơ chế khẳng định "điều kiện quanh vị trí khớp"):</p>
+<pre><code class="language-text">(?&lt;![a-z0-9]) KỸ-NĂNG (?![a-z0-9])                  (4.5)
+</code></pre>
+<ul>
+<li><code>(?&lt;![a-z0-9])</code> = "trước vị trí này KHÔNG có chữ hoặc số" — ngăn <code>sql</code> khớp trong <code>mysql</code>.</li>
+<li><code>(?![a-z0-9])</code> = "sau vị trí này KHÔNG có chữ hoặc số" — ngăn <code>c</code> khớp trong <code>c++</code> sai
+  kiểu.</li>
+<li>Dùng lookaround thay vì <code>\b</code> (word boundary — ranh giới từ) vì <code>\b</code> <strong>sai</strong> với kỹ năng
+  chứa ký tự đặc biệt: ranh giới giữa <code>c</code> và <code>+</code> được coi là ranh giới từ, nên <code>\bc\+\+\b</code>
+  không khớp đúng. Đây là bài học sửa lỗi thật của dự án (mục 6.6).</li>
+</ul>
+<p>Mọi kỹ năng và văn bản đều được <strong>sk_norm</strong> trước khi so: chỉ giữ <code>[a-z0-9+.#/'-]</code>, còn lại
+thay bằng khoảng trắng — nhờ đó <code>Django/Python</code> và <code>django python</code> khớp nhau.</p>
+<h3>4.6 Đo độ trùng kỹ năng: coverage</h3>
+<p>Sau khi có danh sách kỹ năng, độ phù hợp cặp (cv, jd) được đo bằng <strong>coverage</strong> (độ bao phủ):</p>
+<pre><code class="language-text">cov(S_cv, R_jd) = | S_cv ∩ R_jd | / | R_jd |        (4.7)
+</code></pre>
+<ul>
+<li><code>S_cv</code> = tập kỹ năng của CV, <code>R_jd</code> = tập kỹ năng bắt buộc của JD, <code>∩</code> = giao (phần chung).</li>
+<li><code>req_cov = 0.8</code> nghĩa là CV đáp ứng 8/10 kỹ năng bắt buộc.</li>
+<li>Tương tự <code>pref_cov</code> cho nhóm kỹ năng ưu tiên (preferred — nice-to-have).</li>
+</ul>
+<p>Khớp "phần tử" được định nghĩa theo <strong>n-gram set</strong>: một kỹ năng <code>s</code> thuộc <code>S_cv</code> ⟺ chuỗi
+đã <code>sk_norm(s)</code> xuất hiện là một cụm 1–4 từ liền trong CV (hàm <code>ngram_set</code>, mục 6.5). Cách
+này đúng biên từ (không khớp <code>java</code> trong <code>javascript</code>) và tra cứu O(1) bằng frozenset.</p>
+<p>Đây là biến thể của ý tưởng Jaccard [6] — tôi chọn coverage thay vì Jaccard vì JD là "bên
+đặt yêu cầu": nếu CV biết nhiều thứ ngoài yêu cầu (kỹ năng thừa), Jaccard sẽ phạt, coverage
+thì không — đúng logic tuyển dụng.</p>
+<h3>4.7 Hồi quy logistic — mô hình học máy tối thiểu</h3>
+<p>Với 3 đặc trưng <code>x = (cosine, req_cov, pref_cov)</code> cần dự đoán nhãn nhị phân <code>y ∈ {0,1}</code>
+(ví dụ y=1 nếu Good Fit). <strong>Hồi quy logistic</strong> (logistic regression) học một đường biên
+tuyến tính rồi lọc qua hàm sigmoid:</p>
+<pre><code class="language-text">z = w₁·cosine + w₂·req_cov + w₃·pref_cov + b        (4.8)
+p(y=1 | x) = σ(z) = 1 / (1 + e^(−z))                (4.9)
+ŷ = 1  nếu p ≥ 0.5 (hoặc ngưỡng tuỳ chỉnh t*)       (4.9a)
+</code></pre>
+<ul>
+<li><code>σ(z)</code> <strong>sigmoid</strong> nén mọi số thực vào (0, 1) — đọc như xác suất.</li>
+<li><code>w</code>, <code>b</code> học bằng <strong>gradient descent</strong> giảm hàm mất mát (loss) — ở đây là <strong>cross-entropy</strong>
+  (mất mát entropy chéo). scikit-learn làm hết; tôi chỉ chọn <code>class_weight="balanced"</code> —
+  cộng thêm trọng số nghịch đảo tần suất lớp, để lớp thiểu số (Good Fit, 8%) không bị bỏ rơi
+  [12].</li>
+<li><code>t*</code> (ngưỡng) không cố 0.5: chọn ngưỡng <strong>tối đa hoá F1 trên tập train</strong>, rồi áp nguyên
+  lên test (mục 4.8, hàm <code>best_f1_threshold</code>).</li>
+</ul>
+<h3>4.8 Thước đo đánh giá</h3>
+<p>Cho bài toán nhị phân, mỗi cặp (thật, dự đoán) rơi vào <strong>ma trận nhầm lẫn</strong> (confusion
+matrix): TP (true positive — dương đúng), FP (dương giả), FN (âm giả), TN (âm đúng).</p>
+<pre><code class="language-text">Precision P = TP / (TP + FP)        &quot;trong những gì ta gắn nhãn dương, đúng bao nhiêu %&quot;
+Recall    R = TP / (TP + FN)        &quot;trong toàn bộ dương thật, bắt được bao nhiêu %&quot;
+F1 = 2·P·R / (P + R)                trung bình điều hoà của P và R            (4.10–4.12)
+</code></pre>
+<ul>
+<li><strong>ROC</strong> (receiver operating characteristic — đường đặc trưng hoạt động): vẽ TPR = R theo
+  FPR = FP/(FP+TN) khi quét mọi ngưỡng. <strong>AUC</strong> (area under curve) = diện tích dưới đường —
+  đồng thời là <em>xác suất mô hình cho một cặp dương-thật điểm cao hơn một cặp âm-thật</em>. AUC
+  0.5 = đoán mò, 1.0 = hoàn hảo [7].</li>
+<li><strong>PR-AUC</strong>: diện tích dưới đường Precision–Recall. Khi dương hiếm (Good Fit chỉ 12.2% tập
+  test), ROC-AUC dễ tạo ảo giác vì TN quá nhiều [8] — nên tôi luôn báo kèm PR-AUC và
+  <strong>prevalence</strong> (tỉ lệ dương trong dữ liệu): PR-AUC 0.443 với prevalence 0.122 nghĩa là mô
+  hình tốt gấp ~3.6 lần ngẫu nhiên.</li>
+<li><strong>macro-F1</strong>: F1 tính riêng từng lớp rồi lấy trung bình không trọng số — cho thấy chất
+  lượng <em>trên mọi lớp</em>, kể cả lớp ít [9].</li>
+<li><strong>Baseline</strong> (đường nền): mô hình vô dụng nhất hợp lệ — đoán lớp đa số. Accuracy phải
+  thắng baseline mới có nghĩa.</li>
+</ul>
+<p>Áp cho bài toán trích xuất kỹ năng: P@K = P trong K kỹ năng đầu trả ra; R@K = R với K đó;
+R@full = R tính trên toàn bộ danh sách (thường lớn hơn R@K vì quét presence bắt thêm).
+Ground truth (GT — đáp án chuẩn) là các khối "Skills" có sẵn trong 105 CV held-out, trích
+bằng cùng bộ quy tắc <code>parse_skills_block</code> (đã ghi chú trung thực rằng GT kiểu này có thiên
+kiếm — circular evaluation — nêu ở mục 8).</p>
+<hr />
+<h2>5. Dữ liệu</h2>
+<h3>5.1 Nguồn và các bước tải</h3>
+<table>
+<thead>
+<tr>
+<th>Gói</th>
+<th>Nguồn</th>
+<th>Dùng làm gì</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resume-job-description-fit</code> (HF: cnamuangtoun)</td>
+<td>Hugging Face</td>
+<td>CV + JD + nhãn fit chính (dataset đã khai báo trong đề xuất nhóm)</td>
+</tr>
+<tr>
+<td><code>job-skill-set</code> (HF: batuhanmtl)</td>
+<td>Hugging Face</td>
+<td>bổ sung từ điển kỹ năng (4.559 cụm)</td>
+</tr>
+<tr>
+<td><code>esco_skills_test</code> (HF: tabiya, nhãn SkillSpan/techwolf)</td>
+<td>Hugging Face</td>
+<td>bổ sung từ điển (1.445 + 267 cụm)</td>
+</tr>
+<tr>
+<td><code>resumes-raw-pdf</code> (HF: d4rk3r) + Kaggle Resume dataset</td>
+<td>Hugging Face / Kaggle</td>
+<td><strong>tập test ngoài</strong> 999 CV chưa từng thấy</td>
+</tr>
+<tr>
+<td><code>job-descriptions</code> (HF: jacob-hugging-face)</td>
+<td>Hugging Face</td>
+<td><strong>tập test ngoài</strong> 100 JD chưa từng thấy</td>
+</tr>
+</tbody>
+</table>
+<p>Tải bằng <code>huggingface_hub</code> vào thư mục tạm <code>data/_hf_tmp/</code> (đã gitignore), ưu tiên bản đã
+cache cục bộ, bắt lỗi 429 (giới hạn tốc độ của HF với người ẩn danh) rồi fallback — script
+<code>data/download_data.py</code> và <code>data/build_testset.py</code>.</p>
+<h3>5.2 Quy trình làm sạch (build_pairs.py → kho 994 tài liệu)</h3>
+<ol>
+<li>Đọc <code>matching_train.csv</code> (80.017 hàng, 698 MB) và <code>matching_test.csv</code> (14.321 hàng) —
+   giữ các cột <code>resume, jd, label, resume_domain, jd_domain</code>.</li>
+<li><strong>Khử trùng lặp tài liệu</strong>: hash toàn văn → chỉ giữ 643 CV và 351 JD duy nhất (những
+   hàng còn lại là <em>cặp</em> khác nhau giữa cùng CV/JD — dataset gốc tạo nhãn theo cặp).</li>
+<li><strong>Che PII</strong> (personally identifiable information — thông tin nhận diện cá nhân): mọi
+   email → <code>[EMAIL]</code>, số điện thoại → <code>[PHONE]</code>, URL → <code>[URL]</code>. Vừa bảo vệ quyền riêng tư,
+   vừa ngăn mô hình gắn trọng số vào địa chỉ email vô nghĩa.</li>
+<li><strong><code>doc_id</code></strong> = md5(toàn văn)[:12] — mã băm 12 ký tự nhận diện ổn định mỗi tài liệu, dùng
+   xuyên suốt (tên file JSON, bảng cặp, demo).</li>
+<li>Ghi <code>data/csv/</code>: <code>cv_docs.csv</code> (643), <code>jd_docs.csv</code> (351), <code>pairs.csv</code> (93.733 cặp:
+   <code>pair_id, resume_id, jd_id, label, split, resume_domain, jd_domain</code>).</li>
+</ol>
+<p><strong>Nhãn (toàn bộ 93.733 cặp):</strong> No Fit 68.774 (73.4%) · Potential Fit 17.489 (18.7%) ·
+Good Fit 7.470 (8.0%) — lệch mạnh, vấn đề sẽ được xử lý ở mục 4.7/4.8.</p>
+<h3>5.3 Cấu trúc đầu ra trung gian</h3>
+<pre><code class="language-text">data/
+├── extract_json.py            # pipeline chính (trích xuất JSON)
+├── improve_skills.py          # thí nghiệm E1–E7 (bằng chứng quyết định thiết kế)
+├── match_score.py             # pipeline chấm điểm (bài này mục 6.5)
+├── build_pairs.py, build_lexicon_extra.py, build_testset.py, download_data.py
+├── skills_lexicon.txt         # 1.146 cụm tự gieo (giữ tay, có thể tái tạo)
+├── skills_lexicon_extra.txt   # 5.991 cụm từ nguồn ngoài
+├── csv/{cv,jd,pairs}_docs.csv # bảng doc + cặp (gitignore — dữ liệu lớn)
+└── extracted/{cv,jd,test_cv,test_jd}/*.json   # 2.093 file JSON kết quả
+</code></pre>
+<p>Mỗi file JSON là một tài liệu đã cấu trúc hoá (mẫu thật, CV kế toán <code>c94f1a9af5c3</code>):</p>
+<pre><code class="language-json">{
+  &quot;doc_id&quot;: &quot;c94f1a9af5c3&quot;,
+  &quot;type&quot;: &quot;cv&quot;,
+  &quot;name&quot;: null,
+  &quot;skills&quot;: [&quot;peachtree accounting&quot;, &quot;web site&quot;, &quot;cpa&quot;, &quot;business administration&quot;,
+             &quot;network&quot;, &quot;accountant&quot;, &quot;cost reporting&quot;],
+  &quot;experience_years&quot;: 12,
+  &quot;education&quot;: {&quot;degree&quot;: &quot;bachelor&quot;, &quot;major&quot;: &quot;accounting&quot;,
+                &quot;university&quot;: &quot;University of Cincinnati&quot;}
+}
+</code></pre>
+<hr />
+<h2>6. Triển khai — dạy từng hàm trong code</h2>
+<h3>6.1 Cách chạy (tái tạo toàn bộ từ đầu)</h3>
+<pre><code class="language-bash">python data/download_data.py        # (1) tải dataset gốc từ HF/Kaggle
+python data/build_pairs.py          # (2) làm sạch → 643 CV + 351 JD + 93.733 cặp
+python data/build_lexicon_extra.py  # (3) dựng từ điển ngoài 5.991 cụm
+python data/extract_json.py         # (4) trích xuất JSON + đánh giá held-out
+python data/improve_skills.py       # (5) tái tạo bảng thí nghiệm E1–E7
+python data/match_score.py          # (6) chấm điểm + phân loại fit + demo
+python data/build_testset.py        # (7) dựng 999 CV + 100 JD test ngoài
+</code></pre>
+<p>Cần: Python ≥ 3.11, scikit-learn, pandas, numpy, pypdf. Trên Windows chạy <code>python -X utf8</code>
+để in tiếng Việt đúng (mặc định cp1252 gây UnicodeEncodeError).</p>
+<h3>6.2 <code>extract_json.py</code> — pipeline trích xuất (điểm qua, chi tiết trong báo cáo nhóm)</h3>
+<p>Các hàm chính (số dòng trong file hiện tại):</p>
+<table>
+<thead>
+<tr>
+<th>Hàm (dòng)</th>
+<th>Việc</th>
+<th>Điểm cốt lõi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fit</code> (164)</td>
+<td>dựng TF-IDF</td>
+<td><code>min_df=3, ngram_range=(1,2), sublinear_tf=True</code>, L2 mặc định</td>
+</tr>
+<tr>
+<td><code>parse_skills_block</code> (115)</td>
+<td>trích GT từ khối "Skills"</td>
+<td>chỉ khối xuất hiện CUỐI cùng; tách theo dấu phẩy/bullet; mục 2–40 ký tự, ≤4 từ; lọc <code>STOP_SKILLS</code> (tên bang, llc/inc…)</td>
+</tr>
+<tr>
+<td><code>build_lexicon</code> (132)</td>
+<td>gieo từ điển</td>
+<td>đếm theo <strong>số tài liệu</strong> chứa (không phải số lần), <code>min_docs≥3</code></td>
+</tr>
+<tr>
+<td><code>dedup_overlap</code> (170)</td>
+<td>khử chứa</td>
+<td>bỏ term bị term khác <em>chứa trọn</em> (<code>sql</code> ⊂ <code>sql server</code>) — kiểm tra chứa bằng regex lookaround, không dùng <code>in</code> vì biên từ</td>
+</tr>
+<tr>
+<td><code>topk_of</code> (184)</td>
+<td>chọn term</td>
+<td>lấy top-200 điểm ∩ từ điển → dừng ở 25</td>
+</tr>
+<tr>
+<td><code>extract_skills</code> (198)</td>
+<td>hợp kết quả</td>
+<td><code>merged = dedup_overlap(top + tier1 + tier2)</code>; tier1 = nằm trong vùng 1.500 ký tự sau header "Skills" hoặc dòng bullet (điểm tin cậy cao, xếp trước)</td>
+</tr>
+<tr>
+<td><code>make_scan_re</code> (158)</td>
+<td>regex quét</td>
+<td>sắp xếp các kỹ năng dài→ngắn, lookaround như công thức (4.5)</td>
+</tr>
+<tr>
+<td><code>cv_name / cv_experience_years / cv_education</code> (214/229/258)</td>
+<td>trường CV</td>
+<td>quy tắc nghiêm ngặt, thiếu thì <code>null</code> (trung thực hơn đoán bừa)</td>
+</tr>
+<tr>
+<td><code>jd_title / jd_required_years / jd_split_skills</code> (287/305/314)</td>
+<td>trường JD</td>
+<td>tách required/preferred tại từ khoá "preferred/nice to have/bonus"; đếm năm kinh nghiệm trong ngữ cảnh "experience"</td>
+</tr>
+<tr>
+<td><code>heldout_eval</code> (361)</td>
+<td>đánh giá</td>
+<td>in 2 protocol [A]/[B] như mục 7.1</td>
+</tr>
+</tbody>
+</table>
+<h3>6.3 Từ điển kỹ năng</h3>
+<ul>
+<li><strong>Tự gieo (1.146 cụm):</strong> chạy <code>parse_skills_block</code> trên 643 CV, đếm <em>số tài liệu</em> chứa mỗi
+  cụm (một CV nhắc 10 lần vẫn chỉ tính 1), giữ <code>min_docs ≥ 3</code> → cụm phổ biến trong chính
+  "ngôn ngữ CV" của kho này.</li>
+<li><strong>Ngoài (5.991 cụm):</strong> job-skill-set + SkillSpan + ESCO label, đã <code>sk_norm</code>, loại kỹ năng
+  rác theo cùng <code>STOP_SKILLS</code>, trừ trùng với phần tự gieo (117 cụm) và trừ nội bộ (mở rộng
+  đúng mục đích report: P giảm 47.5→43.4 nhưng R tăng 28.1 từ 25.3 — độ phủ rộng hơn).</li>
+<li><strong>Tổng hợp: 7.137 cụm</strong> — tự gieo 1.146 + ngoài 5.991.</li>
+</ul>
+<h3>6.4 Vì sao không dùng <code>in</code> khi khớp kỹ năng</h3>
+<p><code>"sql" in "mysql server"</code> → True (SAI về nghiệp vụ). Hai cách đúng:</p>
+<ol>
+<li><strong>Regex lookaround</strong> <code>(?&lt;![a-z0-9])sql(?![a-z0-9])</code> — dùng khi quét trên văn bản thô,
+   nhanh vì hợp các kỹ năng thành một regex khổng lồ, quét 1 lượt.</li>
+<li><strong>n-gram set</strong> — dùng khi so <em>danh sách với danh sách</em> (coverage): dựng mọi cụm 1–4 từ
+   của CV thành frozenset, tra <code>O(1)</code> (hằng — không phụ thuộc kích thước). Khớp <code>sql server</code>
+   ✓, không khớp <code>sql server 2019</code> (4+ từ) — chấp nhận được vì dạng có năm không phải skill.</li>
+</ol>
+<h3>6.5 <code>match_score.py</code> — pipeline chấm điểm (dạy chi tiết)</h3>
+<p><strong>Bước 1 — nạp và ánh xạ (hàm <code>load_all</code>, <code>row_of</code>).</strong>
+Đọc 994 tài liệu + 93.733 cặp. Với mỗi cặp, <code>crow = map_cv[resume_id]</code>, <code>jrow = map_jd[jd_id]</code>
+dịch từ mã băm sang chỉ số dòng trong ma trận — phép tra bảng O(1).</p>
+<p><strong>Bước 2 — TF-IDF dùng lại (không fit lại).</strong>
+Gọi đúng <code>fit</code> của <code>extract_json.py</code> trên 994 tài liệu, thu <code>X</code> (994 × 32.704, L2 chuẩn hoá)
+→ cắt <code>C = X[:643]</code> (CV) và <code>J = X[643:]</code> (JD). Vì hai ma trận cùng không gian term, cosine
+giữa chúng hợp lệ. Đây là điểm hay của việc tách module: <em>không sao chép code fit</em>, nên vectơ
+dùng để chấm điểm <strong>giống hệt</strong> vectơ đã dùng để trích xuất.</p>
+<p><strong>Bước 3 — cosine 93.733 cặp trong một dòng:</strong></p>
+<pre><code class="language-python">cosine = np.asarray(C[crow].multiply(J[jrow]).sum(axis=1)).ravel()   # công thức (4.6)
+</code></pre>
+<p>Đọc từ trong ra: <code>C[crow]</code> xếp lại 643 hàng CV thành ma trận 93.733 hàng (mỗi cặp 1 hàng);
+<code>.multiply(J[jrow])</code> nhân từng phần tử (dot product rải theo hàng); <code>.sum(axis=1)</code> cộng cột
+→ mỗi hàng 1 số; <code>.ravel()</code> phẳng thành mảng 1 chiều. Với ma trận thưa của scipy, <code>.multiply</code>
+giữ dạng thsparse — 93.733 × 32.704 phần tử chỉ còn ~8 triệu phần tử khác 0 trong RAM.</p>
+<p><strong>Bước 4 — coverage (hàm <code>ngram_set</code> + <code>build_features</code>).</strong></p>
+<pre><code class="language-python">def ngram_set(text, max_k=4):
+    w = sk_norm(text).split()                     # chữ thường, giữ + . # / ' -
+    out, n = set(), len(w)
+    for i in range(n):
+        for k in range(1, max_k + 1):
+            if i + k &lt;= n:
+                out.add(&quot; &quot;.join(w[i:i+k]))       # mọi cụm 1..4 từ liền kề
+    return frozenset(out)                         # frozenset = set không đổi, băm được
+</code></pre>
+<p>Với JD có <code>required_skills</code> → <code>req_cov = |R ∩ S_cv| / |R|</code>; JD không có danh sách
+(31.3 kỹ năng là trung bình, nhưng 33% JD không có trường năm kinh nghiệm) → đặt <strong>NaN</strong>
+(không phải 0! — 0 nghĩa là "CV không biết gì", NaN nghĩa là "không biết vì thiếu dữ liệu")
+và các thước đo bỏ qua NaN bằng mask.</p>
+<p><strong>Bước 5 — chọn ngưỡng (hàm <code>best_f1_threshold</code>).</strong></p>
+<pre><code class="language-python">def best_f1_threshold(y, score):
+    cands = np.unique(np.quantile(score[np.isfinite(score)],
+                                  np.linspace(0.01, 0.99, 197)))
+    best = (0.0, 0.0)
+    for t in cands:
+        f1 = f1_score(y, score &gt;= t, zero_division=0)
+        if f1 &gt; best[1]:
+            best = (t, f1)
+    return best
+</code></pre>
+<p>Quét 197 ngưỡng (quantile 1%..99% của chính điểm số), tính F1 từng ngưỡng, lấy max. Chỉ chạy
+<strong>trên train</strong> — giá trị trả về <code>t*</code> được <em>đóng băng</em> rồi mới áp lên test. Nếu chọn ngưỡng
+trên test thì là rò rỉ dữ liệu (data leakage — dùng đáp án để làm bài), kết quả sẽ đẹp giả
+tạo.</p>
+<p><strong>Bước 6 — báo cáo (hàm <code>binary_report</code>, <code>band_report</code>).</strong>
+<code>binary_report</code> in AUC, PR-AUC, và P/R/F1 tại <code>t*</code>; <code>band_report</code> chia điểm thành 3 vùng
+<code>[0, t_lo) / [t_lo, t_hi) / [t_hi, 1]</code> → in ma trận nhầm lẫn 3×3, accuracy, macro-F1.
+Ngưỡng 3 vùng cũng chọn trên train: <code>t_lo</code> từ bài "Fit vs No Fit", <code>t_hi</code> từ bài
+"Good vs Potential".</p>
+<p><strong>Bước 7 — hồi quy logistic.</strong></p>
+<pre><code class="language-python">lr = LogisticRegression(max_iter=2000, class_weight=&quot;balanced&quot;)
+lr.fit(Xtr, ytr)                    # Xtr = 80.017 cặp train, 3 cột đặc trưng
+p = lr.predict_proba(Xte)[:, 1]     # xác suất lớp dương trên 13.716 cặp test
+</code></pre>
+<p><code>class_weight="balanced"</code> = trọng số lớp ∝ 1/tần suất → Good Fit (8%) được phạt gấp ~9 lần
+khi bỏ sót so với No Fit (73%) — đối trọng cho dữ liệu lệch [12].</p>
+<p><strong>Bước 8 — demo (ghi <code>demo_matches.json</code>).</strong> Rút 3 cặp thật có điểm cao nhất từng nhãn từ
+test, truy ngược JSON gốc của CV/JD, in ra <em>từng kỹ năng khớp / thiếu</em> — bằng chứng pipeline
+không chỉ cho ra con số mà còn giải thích được (mục 7.5).</p>
+<p><strong>Bước 9 — ghi <code>data/scored/pairs_scored.csv</code></strong> — 93.733 hàng <code>(pair_id, resume_id, jd_id,
+label, split, cosine, req_cov, pref_cov)</code> — đầu vào cho phần xếp hạng của đồng nghiệp.</p>
+<h3>6.6 Bẫy đã gặp và bài học (ghi để sau này đỡ tốn thời gian lại)</h3>
+<ol>
+<li><strong><code>\b</code> sai với <code>c++</code>, <code>.net</code>, <code>c#</code></strong> — ranh giới từ của regex tính ký tự đặc biệt là
+   ranh giới; đổi sang lookaround <code>(?&lt;![a-z0-9])…(?![a-z0-9])</code> (mục 4.5).</li>
+<li><strong>NaN vs 0 cho đặc trưng thiếu</strong> — điền 0 thì mô hình hiểu "CV không biết gì"; phải để
+   NaN + mask khi đánh giá.</li>
+<li><strong><code>python</code> không phải <code>python -X utf8</code></strong> — Windows cp1252 ném UnicodeEncodeError khi in
+   tiếng Việt; cố định chạy <code>-X utf8</code>.</li>
+<li><strong>workdir của pwsh có thể bị bỏ qua</strong> — mọi script dùng <code>os.path.join(DATA, …)</code> tương đối
+   và phải chạy từ thư mục gốc dự án.</li>
+<li><strong>Kỹ năng trùng lặp trong output</strong> — <code>dedup_overlap</code> chỉ bỏ term bị <em>chứa</em>, không bỏ term
+   <em>giống hệt</em>; hợp kết quả phải qua <code>sorted(set(…))</code>.</li>
+<li><strong>Rò rỉ khi fit vectorizer trên cả test</strong> — mọi <code>fit</code> đều trên phần train/994 doc chính;
+   tập ngoài chỉ <code>transform</code>/quét presence.</li>
+<li><strong>Số liệu phải ghi rõ protocol</strong> — cùng một mô hình cho 3 con số khác nhau nếu: (a) chấm
+   chỉ top-25 hay cả danh sách, (b) exact hay containment, (c) ngưỡng chọn trên train hay
+   test. Mọi bảng kết quả dưới đây đều ghi protocol ngay trên tiêu đề.</li>
+</ol>
+<hr />
+<h2>7. Kết quả và thảo luận</h2>
+<h3>7.1 Trích xuất kỹ năng — đánh giá held-out (129 CV, 105 có GT)</h3>
+<p>Hai protocol song song, cùng 514 train / 129 held-out, seed 42, TF-IDF fit trên 514 CV train:</p>
+<ul>
+<li><strong>[A] Protocol cũ</strong> — chỉ chấm 25 kỹ năng top điểm TF-IDF, khớp <em>exact</em> từng chuỗi với GT.</li>
+<li><strong>[B] Protocol thật</strong> — chấm đúng <em>đầu ra cuối cùng</em> của hệ thống (top + tier + quét
+  presence, đã dedup), khớp theo <em>chứa trọn biên từ</em> (containment).</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>P@25</th>
+<th>R@25</th>
+<th>R@full</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>[A] cũ (top-25, exact)</td>
+<td>43.4%</td>
+<td>28.1%</td>
+<td>—</td>
+</tr>
+<tr>
+<td>[B] mới (output thật, containment)</td>
+<td><strong>51.0%</strong></td>
+<td><strong>44.7%</strong></td>
+<td><strong>74.6%</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Thảo luận.</strong> Nhảy vọt từ [A] sang [B] không phải do "chăm hơn" mà do 3 quyết định có bằng
+chứng (mục 7.2): khớp containment (+11.6 điểm R@25), sắp xếp tier (lucky-first — đưa kỹ năng
+nằm gần khối "Skills" lên đầu, +3.8 P), và hygiene từ điển (loại tên bang, tăng min_docs).
+Lưu ý protocol cũ đánh giá <em>sai đối tượng</em> (chỉ top-25 TF-IDF, không phải output thật) — bài
+học về việc "đo đúng thứ mình đóng gói".</p>
+<h3>7.2 Bảng thí nghiệm — mỗi quyết định một hàng (protocol [B], held-out)</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Cấu hình</th>
+<th>P@25</th>
+<th>R@25</th>
+<th>R@full</th>
+<th>Kết luận</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>baseline: chỉ top-25 TF-IDF, exact</td>
+<td>43.4</td>
+<td>28.1</td>
+<td>—</td>
+<td>mốc so sánh</td>
+</tr>
+<tr>
+<td>E1</td>
+<td>output thật (top + presence scan), exact</td>
+<td>41.6</td>
+<td>29.7</td>
+<td>54.9</td>
+<td>quét presence tăng recall nhưng exact phạt dư từ</td>
+</tr>
+<tr>
+<td>E2</td>
+<td>+ khớp containment</td>
+<td>47.3</td>
+<td>39.7</td>
+<td>74.6</td>
+<td>+11.6 R@25 — biến thể viết khác được nhận diện</td>
+</tr>
+<tr>
+<td>E3</td>
+<td>+ tier ordering (vùng "Skills"/bullet lên đầu)</td>
+<td><strong>51.0</strong></td>
+<td><strong>44.7</strong></td>
+<td>74.6</td>
+<td>+3.8 P — Lucky-first đúng cơ chế</td>
+</tr>
+<tr>
+<td>E4</td>
+<td>+ bình hoá số nhiều (databases→database)</td>
+<td>50.2</td>
+<td>45.4</td>
+<td>76.1</td>
+<td>không đáng — P giảm</td>
+</tr>
+<tr>
+<td>E5</td>
+<td>+ lọc skill generic (df &gt; 0.5)</td>
+<td>50.5</td>
+<td>44.3</td>
+<td>64–68</td>
+<td><strong>LOẠI</strong> — skill generic vẫn có trong GT</td>
+</tr>
+<tr>
+<td>E6</td>
+<td>hạ min_docs 3→2 (+544 cụm)</td>
+<td>50.5</td>
+<td>45.2</td>
+<td>79.5</td>
+<td><strong>LOẠI</strong> — P giảm, nhiễu tăng</td>
+</tr>
+<tr>
+<td>E7</td>
+<td>+ từ điển từ CV test</td>
+<td>50.1</td>
+<td>45.3</td>
+<td>76.1</td>
+<td><strong>LOẠI</strong> — không giá trị, rò rỉ rủi ro</td>
+</tr>
+</tbody>
+</table>
+<p>→ <strong>Cấu hình cuối: E3.</strong> Mọi thí nghiệm dùng đúng protocol held-out (chọn trên train, đo
+trên held-out), script <code>data/improve_skills.py</code> tái tạo được từng hàng.</p>
+<h3>7.3 Độ phủ ngoài (tài liệu chưa từng thấy — kiểm tra tổng quát hoá)</h3>
+<table>
+<thead>
+<tr>
+<th>Tập</th>
+<th>N</th>
+<th>≥1 skill</th>
+<th>≥5</th>
+<th>≥10</th>
+<th>Số skill TB</th>
+<th>zero</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CV chính</td>
+<td>643</td>
+<td>100%</td>
+<td>100%</td>
+<td>100%</td>
+<td>76.0</td>
+<td>0</td>
+</tr>
+<tr>
+<td>JD chính</td>
+<td>351</td>
+<td>100%</td>
+<td>99.1%</td>
+<td>95.2%</td>
+<td>39.7</td>
+<td>0</td>
+</tr>
+<tr>
+<td><strong>CV test ngoài</strong></td>
+<td>999</td>
+<td>94.3%</td>
+<td>73.2%</td>
+<td>57.8%</td>
+<td>26.5</td>
+<td>57</td>
+</tr>
+<tr>
+<td><strong>JD test ngoài</strong></td>
+<td>100</td>
+<td>100%</td>
+<td>99%</td>
+<td>94%</td>
+<td>37.3</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>57/999 CV test ngoài cho 0 kỹ năng: kiểm tra trung bình 1.237 ký tự so với 3.820 ký tự của
+  CV có kết quả — phần lớn là PDF trích xuất được quá ít văn bản (giới hạn của pypdf), không
+  phải lỗi pipeline. Điều này được ghi rõ trung thực trong <code>data/README.md</code>.</li>
+<li>Trường khác trên CV chính: degree 99.7%, major 62.1%, university 93.0%, experience_years
+  22.2%, name 0% (quy tắc nghiêm ngặt — không đoán bừa tên); JD: title 51.0%, required
+  trung bình 31.3 kỹ năng, preferred 8.4, years 66.7%.</li>
+</ul>
+<h3>7.4 Chấm điểm &amp; phân loại fit — tập test 13.716 cặp (ngưỡng chọn trên train)</h3>
+<p><strong>Thống kê theo nhãn (toàn bộ dữ liệu — mô tả tính chất tín hiệu):</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>cosine TB</th>
+<th>req_cov TB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Good Fit</td>
+<td>0.0654</td>
+<td>0.2615</td>
+</tr>
+<tr>
+<td>Potential Fit</td>
+<td>0.0503</td>
+<td>0.2198</td>
+</tr>
+<tr>
+<td>No Fit</td>
+<td>0.0326</td>
+<td>0.1425</td>
+</tr>
+</tbody>
+</table>
+<p>→ Cả hai đặc trưng tăng đơn điệu theo "độ phù hợp" — tiền đề cho mô hình học.</p>
+<p><strong>Bài nhị phân (test 13.716 cặp; prevalence Good = 12.2%, No = 61.7%):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Mô hình</th>
+<th>Đối tượng</th>
+<th>AUC</th>
+<th>PR-AUC</th>
+<th>P</th>
+<th>R</th>
+<th>F1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>chỉ cosine</td>
+<td>Good vs còn lại</td>
+<td>0.805</td>
+<td>0.433</td>
+<td>0.464</td>
+<td>0.424</td>
+<td>0.443</td>
+</tr>
+<tr>
+<td>chỉ req_cov</td>
+<td>Good vs còn lại</td>
+<td>0.757</td>
+<td>0.310</td>
+<td>0.298</td>
+<td>0.466</td>
+<td>0.363</td>
+</tr>
+<tr>
+<td><strong>LR (3 đặc trưng)</strong></td>
+<td>Good vs còn lại</td>
+<td><strong>0.810</strong></td>
+<td><strong>0.443</strong></td>
+<td>0.441</td>
+<td>0.470</td>
+<td>0.455</td>
+</tr>
+<tr>
+<td>LR (3 đặc trưng)</td>
+<td>Potential vs còn lại</td>
+<td>0.647</td>
+<td>0.343</td>
+<td>0.332</td>
+<td>0.770</td>
+<td>0.464</td>
+</tr>
+<tr>
+<td>LR (3 đặc trưng)</td>
+<td>No Fit vs còn lại</td>
+<td>0.761</td>
+<td>0.817</td>
+<td>0.699</td>
+<td>0.929</td>
+<td>0.798</td>
+</tr>
+</tbody>
+</table>
+<p>Hệ số LR (lớp Good): <code>cosine +53.914 · req_cov +0.471 · pref_cov +0.172 · b −2.689</code> — cosine
+chi phối (đặc trưng gốc ở thang nhỏ), req_cov vẫn đóng góp dương; dấu tất cả đúng trực giác.</p>
+<p><strong>Bài 3 vùng (No / Potential / Good) — ngưỡng <code>t_lo = 0.0459, t_hi = 0.0639</code> chọn trên train:</strong></p>
+<pre><code class="language-text">                dự đoán →   No     Potential   Good
+No Fit  (8.461)          6.943    1.246       272
+Potential(3.582)         1.993    1.040       549
+Good Fit (1.673)           486      477       710
+accuracy 0.634 · macro-F1 0.516 · baseline đoán toàn &quot;No Fit&quot; = 0.617
+</code></pre>
+<p><strong>Thảo luận:</strong></p>
+<ul>
+<li><em>Cosine đơn lẻ gần bằng LR 3 đặc trưng</em> (0.805 vs 0.810 AUC): tín hiệu chủ lực là trùng
+  từ vựng; coverage chỉ cải thiện nhẹ. Điều này hợp lý vì nhãn của dataset này được tạo từ
+  chính độ trùng nội dung (kiểm chứng: cùng JD <code>41db8fe628ff</code>, 3 CV có nhãn No/Potential/
+  Good có cosine 0.117/0.179/0.219 tăng đều — mục 7.5).</li>
+<li><em>Lớp Potential khó nhất</em> (AUC 0.64-0.65): nằm giữa, ranh giới mờ — kể cả với con người.
+  Đây là giới hạn của nhãn 3 lớp với đặc trưng bề mặt.</li>
+<li><em>PR-AUC là thước đo trung thực ở đây</em>: Good Fit chỉ 12.2% — PR-AUC 0.443 = 3.6× ngẫu nhiên;
+  nếu chỉ nhìn ROC-AUC 0.81 dễ ảo tưởng vì TN áp đảo.</li>
+<li><em>Trên thực tế dùng 2 lớp + xếp hạng</em>: dùng cosine làm điểm xếp hạng ứng viên trong từng JD,
+  lấy <code>t_lo</code> làm cổng lọc no-fit — đủ cho phần sau của nhóm; 3 vùng chỉ để tham chiếu.</li>
+</ul>
+<h3>7.5 Demo — giải thích được (3 cặp thật từ <code>demo_matches.json</code>, cùng JD "Java web dev")</h3>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>CV abe506a3b114 (Good)</th>
+<th>CV b4f87f0183e5 (Potential)</th>
+<th>CV e06e1b4e5f42 (No)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>cosine</td>
+<td>0.2187</td>
+<td>0.1789</td>
+<td>0.1171</td>
+</tr>
+<tr>
+<td>req_cov</td>
+<td>0.800</td>
+<td>0.867</td>
+<td>0.667</td>
+</tr>
+<tr>
+<td>khớp (rút gọn)</td>
+<td>angular, java, j2ee, ajax, jquery, json, css, html…</td>
+<td>java, jsp, j2ee, xml, ajax… (thiếu <strong>angular</strong>)</td>
+<td>java, javascript, css, xml… (thiếu <strong>angular, j2ee, json</strong>)</td>
+</tr>
+<tr>
+<td>thiếu</td>
+<td>bootstrap, jsp, xml</td>
+<td>angular, bootstrap</td>
+<td>angular, bootstrap, jsp, j2ee, json</td>
+</tr>
+</tbody>
+</table>
+<p>Nhận xét có giáo dục: cặp "No Fit" vẫn khớp 10/15 kỹ năng — nhãn không phải hàm của coverage
+một cách máy móc (khác biệt nằm ở ngữ nghĩa/phạm vi công việc mà TF-IDF không thấy). Pipeline
+in ra <em>danh sách khớp/thiếu</em> → con người soát được từng quyết định.</p>
+<hr />
+<h2>8. Giới hạn</h2>
+<ol>
+<li><strong>Circular evaluation (GT vòng).</strong> GT trích xuất kỹ năng là khối "Skills" trong chính CV,
+   trích bằng cùng bộ quy tắc — thuận cho phương pháp của tôi. R@full 74.6% là <em>thiên
+   tích cực</em> trên GT này, nhưng <em>thiên tiêu cực</em> với GT hẹp (GT chỉ ghi ~3,588 cụm trên 105
+   CV, trong khi CV nhắc nhiều hơn). Kết luận an toàn: so sánh <strong>tương đối</strong> giữa các cấu
+   hình là đáng tin; con số tuyệt đối đọc kèm "±".</li>
+<li><strong>Nhãn fit do dataset tự tạo</strong>, phân bố lệch (73/19/8), ranh giới Potential mờ — mô hình
+   học giỏi tối đa bằng chất lượng nhãn (garbage in, garbage out).</li>
+<li><strong>Không có ngữ nghĩa.</strong> <code>java</code> (ngôn ngữ) và <code>javascript</code> là 2 term khác nhau — với
+   TF-IDF đúng vậy; nhưng "developer" vs "engineer" thì không nối được. NER/embedding của
+   đồng nghiệp là hướng nâng cấp trực tiếp.</li>
+<li><strong>PDF hỏng làm sai lệch test ngoài</strong> (57 CV zero — văn bản gốc quá ít).</li>
+<li><strong>JD thiếu trường</strong> (title 51%, years 67% trên JD chính) — quy tắc trả <code>null</code> thay vì đoán;
+   phần sau cần xử lý null.</li>
+<li><strong>Chỉ 643 CV/351 JD chính</strong> — 80.017 hàng phần lớn là cặp trùng tài liệu; thống kê mô
+   hình chấm điểm dựa trên 93.733 cặp nhưng từ 994 tài liệu gốc.</li>
+</ol>
+<hr />
+<h2>9. Thay đổi so với đề xuất</h2>
+<ul>
+<li>Đề xuất cột mốc "trích xuất kỹ năng TF-IDF" → <strong>hoàn thành và mở rộng</strong>: từ khái niệm ban
+  đầu (TF-IDF xếp hạng term) phát triển thành pipeline 3 tầng (TF-IDF → từ điển → tier+quét
+  presence) sau khi thí nghiệm chứng minh mỗi tầng đóng góp riêng (mục 7.2).</li>
+<li>Đề xuất "tính điểm phù hợp + matched/missing skills" → <strong>hoàn thành</strong> (mục 7.4–7.5), đầu
+  ra <code>pairs_scored.csv</code> sẵn sàng cho phần xếp hạng.</li>
+<li>Bổ sung ngoài đề xuất: bộ thí nghiệm có kiểm soát (improve_skills.py), tập test ngoài
+  1.099 tài liệu, hướng dẫn giảng dạy 20 trang (<code>docs/bai-giang-trich-xuat-skill-tfidf.pdf</code>).</li>
+</ul>
+<hr />
+<h2>10. Đóng góp, sử dụng AI và tài nguyên bên ngoài</h2>
+<ul>
+<li><strong>Đóng góp cá nhân (tôi):</strong> toàn bộ phần dữ liệu, trích xuất kỹ năng, chấm điểm trong báo
+  cáo này — 7 script Python (~2.000 dòng), 2 từ điển, 2.093 file JSON, bảng thí nghiệm, tài
+  liệu hướng dẫn; các phần khác (parser đa mục đích, NER, giao diện) của đồng nghiệp.</li>
+<li><strong>AI:</strong> dùng trợ lý lập trình để soạn/hiệu chỉnh code và tài liệu; mọi quyết định thiết kế,
+  thí nghiệm và số liệu do tôi kiểm soát, script đều chạy được độc lập (không có bước "ma
+  thuật" không tái tạo được).</li>
+<li><strong>Tài nguyên:</strong> dataset và từ điển liệt kê ở mục 5.1; không dùng trọng số mô hình học sâu
+  nào; toàn bộ chạy CPU cục bộ.</li>
+</ul>
+<hr />
+<h2>11. Kết luận</h2>
+<p>Phần của tôi đưa dự án từ CSV thô 80.017 hàng đến trạng thái "sẵn sàng cho phần còn lại của
+hệ thống": 994 tài liệu sạch có cấu trúc JSON, 7.137 kỹ năng từ điển, điểm cosine + coverage
+cho 93.733 cặp (AUC 0.81 cho Good-vs-rest, vượt baseline rõ rệt, giải thích được từng kỹ năng
+khớp/thiếu), và một bộ đánh giá trung thực (2 protocol, ngưỡng đóng băng trên train, PR-AUC
+kèm prevalence). Hướng phát triển tự nhiên: NER/embedding cho kỹ năng (đồng nghiệp), xếp hạng
+theo cặp với learning-to-rank, và gán GT thủ công cho ~50 JD để đo công bằng thêm một chiều.</p>
+<hr />
+<h2>12. Tài liệu tham khảo</h2>
+<p>[1] Pedregosa, F. et al. "Scikit-learn: Machine Learning in Python." <em>JMLR</em> 12 (2011):
+2825–2830. — https://scikit-learn.org/stable/ (truy cập 2026-11-04)</p>
+<p>[2] scikit-learn, "Text feature extraction" (User Guide §6.2.3: sublinear tf, smooth idf,
+n-grams, L2 normalisation). —
+https://scikit-learn.org/stable/modules/feature_extraction.html#text-feature-extraction
+(truy cập 2026-11-04)</p>
+<p>[3] Manning, C., Raghavan, P., Schütze, H. <em>Introduction to Information Retrieval.</em>
+Cambridge University Press, 2008, ch. 6 (term weighting, vector space model, cosine).</p>
+<p>[4] Salton, G., Buckley, C. "Term-weighting approaches in automatic text retrieval."
+<em>Information Processing &amp; Management</em> 24(5) (1988): 513–523.</p>
+<p>[5] Robertson, S. "Understanding inverse document frequency: on theoretical arguments for
+IDF." <em>Journal of Documentation</em> 60(5) (2004): 503–520.</p>
+<p>[6] Jaccard, P. "Étude comparative de la distribution florale dans une portion des Alpes et
+du Jura." <em>Bulletin de la Société Vaudoise des Sciences Naturelles</em> 37 (1901): 547–579.</p>
+<p>[7] Fawcett, T. "An introduction to ROC analysis." <em>Pattern Recognition Letters</em> 27(8)
+(2006): 861–874.</p>
+<p>[8] Davis, J., Goadrich, M. "The relationship between Precision-Recall and ROC curves."
+<em>Proc. ICML</em> (2006): 233–240.</p>
+<p>[9] Sokolova, M., Lapalme, G. "A systematic analysis of performance measures for
+classification tasks." <em>Information Processing &amp; Management</em> 45(4) (2009): 427–437.</p>
+<p>[10] Zhang, M., Jensen, K.N., Dol, S., Sequeira, M.V.d., Plank, B. "SkillSpan: Hard and Soft
+Skill Extraction from English Job Postings." <em>NAACL-HLT</em> (2022). arXiv:2202.12271. —
+https://arxiv.org/abs/2202.12271 (truy cập 2026-11-04)</p>
+<p>[11] European Commission, <strong>ESCO</strong> — European Skills, Competences, Qualifications and
+Occupations. — https://esco.ec.europa.eu/ (truy cập 2026-11-04)</p>
+<p>[12] Dataset (HF Datasets, truy cập 2026-11-04):
+<code>cnamuangtoun/resume-job-description-fit</code> (CV+JD+nhãn chính) ·
+<code>batuhanmtl/job-skill-set</code> (từ điển) · <code>tabiya/esco_skills_test</code> (SkillSpan/techwolf) ·
+<code>d4rk3r/resumes-raw-pdf</code> (CV test ngoài) · <code>jacob-hugging-face/job-descriptions</code> (JD test
+ngoài) · Kaggle <code>sachinkelenjaguri/resume-dataset</code> (CV test ngoài bổ sung).</p>
+<p>[13] scikit-learn API (truy cập 2026-11-04): <code>TfidfVectorizer</code> —
+https://scikit-learn.org/stable/modules/generated/sklearn.feature_extraction.text.TfidfVectorizer.html ·
+<code>LogisticRegression</code> (class_weight="balanced") —
+https://scikit-learn.org/stable/modules/generated/sklearn.linear_model.LogisticRegression.html ·
+<code>metrics</code> (f1_score, roc_auc_score, precision_recall_curve) —
+https://scikit-learn.org/stable/modules/model_evaluation.html</p>
+<p>[14] Công cụ: pandas (https://pandas.pydata.org/), numpy (https://numpy.org/), pypdf
+(https://pypdf.readthedocs.io/), Python 3.13 (https://www.python.org/) — truy cập 2026-11-04.</p></body></html>

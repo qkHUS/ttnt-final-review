@@ -1,0 +1,83 @@
+[
+  {
+    "label": "Good Fit",
+    "resume_id": "abe506a3b114",
+    "jd_id": "41db8fe628ff",
+    "cosine": 0.2187,
+    "req_cov": 0.8,
+    "job_title": null,
+    "matched_required": [
+      "angular",
+      "java",
+      "javascript",
+      "j2ee",
+      "ajax",
+      "jquery",
+      "json",
+      "css",
+      "html",
+      "developer",
+      "web",
+      "application"
+    ],
+    "missing_required": [
+      "bootstrap",
+      "jsp",
+      "xml"
+    ]
+  },
+  {
+    "label": "Potential Fit",
+    "resume_id": "b4f87f0183e5",
+    "jd_id": "41db8fe628ff",
+    "cosine": 0.1789,
+    "req_cov": 0.8667,
+    "job_title": null,
+    "matched_required": [
+      "java",
+      "javascript",
+      "jsp",
+      "j2ee",
+      "ajax",
+      "jquery",
+      "json",
+      "css",
+      "xml",
+      "html",
+      "developer",
+      "web",
+      "application"
+    ],
+    "missing_required": [
+      "angular",
+      "bootstrap"
+    ]
+  },
+  {
+    "label": "No Fit",
+    "resume_id": "e06e1b4e5f42",
+    "jd_id": "41db8fe628ff",
+    "cosine": 0.1171,
+    "req_cov": 0.6667,
+    "job_title": null,
+    "matched_required": [
+      "java",
+      "javascript",
+      "ajax",
+      "jquery",
+      "css",
+      "xml",
+      "html",
+      "developer",
+      "web",
+      "application"
+    ],
+    "missing_required": [
+      "angular",
+      "bootstrap",
+      "jsp",
+      "j2ee",
+      "json"
+    ]
+  }
+]

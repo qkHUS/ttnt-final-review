@@ -1,0 +1,35 @@
+{
+  "doc_id": "789ceef37ad0",
+  "name": "Phan Minh Quang",
+  "skills": [
+    "aws",
+    "kubernetes",
+    "docker",
+    "ec2",
+    "rds",
+    "db",
+    "nas",
+    "grafana",
+    "basic",
+    "ubuntu linux",
+    "vm",
+    "router",
+    "cloud",
+    "telecom",
+    "s3",
+    "engineer",
+    "jenkins",
+    "code",
+    "ci/cd",
+    "nginx",
+    "vsphere",
+    "gitlab ci",
+    "k8s"
+  ],
+  "experience_years": null,
+  "education": {
+    "degree": "Bachelor",
+    "major": null,
+    "university": null
+  }
+}

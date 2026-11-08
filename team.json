@@ -1,0 +1,24 @@
+{
+  "course": "MAT1206E",
+  "group_name": "NULLPOINTER",
+  "founder": "NgocQuyenDang",
+  "members": [
+    {
+      "full_name": "Đặng Ngọc Quyến",
+      "student_id": "24002078",
+      "github_username": "NgocQuyenDang"
+    },
+
+    {
+      "full_name": "Kiều Hoàng Quân",
+      "student_id": "24002071",
+      "github_username": "qkHUS"
+    },
+
+    {
+      "full_name": "Nguyễn Cảnh Trọng",
+      "student_id": "24002095",
+      "github_username": "trongdzai175"
+    }
+  ]
+}

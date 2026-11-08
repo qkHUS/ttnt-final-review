@@ -1,0 +1,13 @@
+﻿.env
+*.key
+venv/
+.venv/
+__pycache__/
+node_modules/
+.ipynb_checkpoints/
+
+data/_hf_tmp/
+
+data/csv/matching_train.csv
+data/csv/matching_test.csv
+data/csv/parser_train.csv

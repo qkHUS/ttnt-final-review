@@ -1,0 +1,979 @@
+<!DOCTYPE html><html><head><meta charset='utf-8'><title>bai-giang-trich-xuat-skill-tfidf</title><style>
+@page { size: A4; margin: 16mm 14mm 18mm; }
+* { box-sizing: border-box; }
+body { font-family: 'Segoe UI', 'Times New Roman', sans-serif; font-size: 10pt;
+       line-height: 1.5; color: #1c2733; margin: 0; }
+h1 { font-size: 15.5pt; color: #123a5f; border-bottom: 2.5px solid #123a5f;
+     padding-bottom: 4px; margin: 20px 0 10px; page-break-before: always; }
+h1:first-of-type { page-break-before: avoid; margin-top: 0; }
+h2 { font-size: 12.5pt; color: #1a5276; margin: 16px 0 6px; border-bottom: 1px solid #cfd8e3;
+     padding-bottom: 2px; }
+h3 { font-size: 11pt; color: #21618c; margin: 12px 0 5px; }
+p { margin: 5px 0; }
+ul, ol { margin: 5px 0 5px 4px; padding-left: 20px; }
+li { margin: 2.5px 0; }
+strong { color: #0d2f4f; }
+code { font-family: Consolas, 'Courier New', monospace; font-size: 8.8pt;
+       background: #eef1f5; padding: 0.5px 3px; border-radius: 3px; }
+pre { background: #f4f6f9; border: 1px solid #d5dce6; border-radius: 4px;
+      padding: 8px 10px; margin: 7px 0; white-space: pre-wrap; word-wrap: break-word; }
+pre code { background: none; padding: 0; font-size: 8.4pt; line-height: 1.38; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 8.9pt; }
+th, td { border: 1px solid #b8c4d0; padding: 3px 7px; text-align: left;
+         vertical-align: top; }
+th { background: #dbe7f3; color: #123a5f; }
+tr:nth-child(even) td { background: #f6f9fc; }
+blockquote { border-left: 3.5px solid #7fa8c9; background: #f2f7fb; margin: 8px 0;
+             padding: 5px 12px; color: #33475b; }
+hr { border: 0; border-top: 1px solid #c9d4e0; margin: 14px 0; }
+a { color: #1a5276; text-decoration: none; }
+</style></head><body><h1>BÀI GIẢNG — Từ CV thô đến JSON có cấu trúc: Trích xuất kỹ năng bằng TF-IDF</h1>
+<p><strong>Môn học:</strong> MAT1206E — Nhập môn Trí tuệ Nhân tạo (VNU-HUS, hè 2026)
+<strong>Đề tài nhóm:</strong> CV/Resume Parser and Job Matching System
+<strong>Phần tài liệu này giải thích:</strong> chuẩn bị dữ liệu + trích xuất kỹ năng từ CV &amp; JD (tác giả: Đặng Ngọc Quyền)</p>
+<blockquote>
+<p><strong>Cách dùng tài liệu này.</strong> Viết cho người <strong>chưa biết gì</strong> về xử lý ngôn ngữ.
+Mỗi thuật ngữ mới được giải thích ngay khi xuất hiện (in <em>nghiêng</em>).
+Mọi con số trong bài đều là số <strong>chạy thật</strong> từ project, không bịa.
+Đọc tuần tự chương 0 → 11; hoặc tra nhanh qua mục lục + bảng thuật ngữ (chương 10).</p>
+</blockquote>
+<hr />
+<h2>Mục lục</h2>
+<ul>
+<li><strong>Chương 0</strong> — Ai cần đọc, cần chuẩn bị gì</li>
+<li><strong>Chương 1</strong> — Bài toán tổng thể, và vì sao cần JSON</li>
+<li><strong>Chương 2</strong> — Dữ liệu gốc: từ 80.017 dòng xuống 994 văn bản</li>
+<li><strong>Chương 3</strong> — Danh bạ kỹ năng: dạy máy "từ nào là kỹ năng"</li>
+<li><strong>Chương 4</strong> — TF-IDF: chấm điểm từ thông minh hơn đếm trần</li>
+<li><strong>Chương 5</strong> — Từ điểm số → 25 kỹ năng cuối</li>
+<li><strong>Chương 6</strong> — Các trường còn lại của JSON (tên, kinh nghiệm, học vấn, JD)</li>
+<li><strong>Chương 7</strong> — Chấm điểm máy: precision / recall và bài thi 80/20</li>
+<li><strong>Chương 8</strong> — Thi ngoài: bộ test 1.099 file từ nguồn khác</li>
+<li><strong>Chương 9</strong> — Sơ đồ tổng thể + bàn giao cho bạn cùng nhóm</li>
+<li><strong>Chương 10</strong> — Bảng thuật ngữ</li>
+<li><strong>Chương 11</strong> — Câu hỏi ôn tập</li>
+</ul>
+<hr />
+<h1>Chương 0 — Ai cần đọc, cần chuẩn bị gì</h1>
+<p><strong>Ai cần đọc.</strong> Bạn cùng nhóm làm các phần còn lại (matching model, parser/NER, báo cáo) muốn hiểu
+phần data preparation + skill extraction hoạt động ra sao và <strong>dùng output thế nào</strong>.
+Hoặc bất kỳ ai muốn học cách xây một pipeline trích xuất thông tin nhỏ hoàn chỉnh.</p>
+<p><strong>Cần biết trước.</strong> Chỉ cần biết chạy Python. Không cần biết machine learning, không cần biết NLP.</p>
+<p><strong>Môi trường của project.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Thứ</th>
+<th>Giá trị</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Python</td>
+<td>3.13</td>
+</tr>
+<tr>
+<td>Thư viện chính</td>
+<td><code>pandas</code> (bảng dữ liệu), <code>scikit-learn</code> (TF-IDF), <code>pypdf</code> (đọc PDF)</td>
+</tr>
+<tr>
+<td>Chạy script</td>
+<td>từ thư mục gốc project: <code>python data/&lt;tên script&gt;.py</code></td>
+</tr>
+<tr>
+<td>Dữ liệu gốc</td>
+<td>file CSV tải từ HuggingFace (một "chợ dữ liệu" trực tuyến)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h1>Chương 1 — Bài toán tổng thể, và vì sao cần JSON</h1>
+<h2>1.1 Bài toán của cả nhóm</h2>
+<p>Đề tài: <strong>so CV với tin tuyển dụng (JD = Job Description) để chấm mức độ khớp</strong> —
+"ứng viên này có phù hợp vị trí Java Developer không?".</p>
+<p>Cả nhóm chia làm 3 mảnh. Phần của chúng ta là <strong>đầu vào</strong>: biến đống văn bản thô
+(CV là đoạn text lộn xộn, JD là đoạn text lộn xộn) thành dữ liệu <strong>sạch, có cấu trúc</strong>,
+để các phần sau (chấm điểm khớp) làm việc được.</p>
+<h2>1.2 Vì sao cần JSON</h2>
+<p>Văn bản thô là một chuỗi chữ không máy nào tính được. JSON (<em>một định dạng dữ liệu có cấu trúc,
+kiểu từ điển có khóa → giá trị</em>) biến mỗi CV thành "phiếu thông tin" có ô rõ ràng:</p>
+<pre><code class="language-json">{
+  &quot;doc_id&quot;: &quot;c94f1a9af5c3&quot;,
+  &quot;name&quot;: null,
+  &quot;skills&quot;: [&quot;peachtree&quot;, &quot;cpa&quot;, &quot;accounting&quot;],
+  &quot;experience_years&quot;: 10,
+  &quot;education&quot;: {&quot;degree&quot;: &quot;B.S&quot;, &quot;major&quot;: null, &quot;university&quot;: &quot;University of Cincinnati&quot;}
+}
+</code></pre>
+<p>Có cấu trúc rồi thì:
+- <strong>Matching model</strong> (bạn nhóm) so trực tiếp <code>skills</code> của CV với <code>required_skills</code> của JD;
+- <strong>Báo cáo</strong> đếm thống kê được ("62% CV ghi rõ chuyên ngành");
+- <strong>Người đọc</strong> nhìn 5 giây hiểu CV nói gì.</p>
+<h2>1.3 Sơ đồ 30 giây</h2>
+<pre><code>CSV thô 80.017+13.716 dòng
+        │  build_pairs.py  (làm sạch, dedup, ẩn thông tin cá nhân)
+        ▼
+994 văn bản sạch (643 CV + 351 JD)
+        │  extract_json.py  (TF-IDF + regex)
+        ▼
+data/extracted/{cv,jd}/&lt;doc_id&gt;.json   ← sản phẩm bàn giao
+</code></pre>
+<hr />
+<h1>Chương 2 — Dữ liệu gốc: từ 80.017 dòng xuống 994 văn bản</h1>
+<h2>2.1 Phát hiện đầu tiên: dữ liệu lặp rất nhiều</h2>
+<p>File <code>matching_train.csv</code> nặng <strong>698 MB</strong>, có <strong>80.017 dòng</strong> — mỗi dòng là một cặp (CV, JD, nhãn).
+Nhưng khi đếm văn bản <em>khác nhau</em>, chỉ còn <strong>642 CV</strong> và <strong>280 JD</strong>. Nghĩa là cùng một CV
+xuất hiện hàng trăm lần, ghép với nhiều JD khác nhau. File test thêm chút nữa: tổng cộng
+<strong>643 CV + 351 JD = 994 văn bản duy nhất</strong>.</p>
+<p><strong>Bài học:</strong> luôn đếm "số phần tử thật" trước khi tin con số to đẹp. 80.017 dòng nghe lớn,
+nhưng tri thức thật trong đó chỉ bằng 994 văn bản.</p>
+<h2>2.2 Ba khái niệm xử lý cơ bản</h2>
+<p><strong>1. Dedup (loại trùng lặp).</strong> Giữ mỗi văn bản duy nhất một lần. Cách nhận diện "giống nhau"
+không phải bằng tên file mà bằng <strong>nội dung</strong>: băm (<em>hash</em> — hàm biến văn bản thành một dãy
+ký tự nhận dạng, hai văn bản giống hệt nhau thì băm ra giống hệt nhau) văn bản bằng <strong>md5</strong>,
+lấy 12 ký tự đầu làm <code>doc_id</code> (định danh tài liệu):</p>
+<pre><code class="language-python">def doc_id(text: str) -&gt; str:
+    &quot;&quot;&quot;Định danh tài liệu bằng md5 của toàn bộ văn bản (12 ký tự đầu).&quot;&quot;&quot;
+    return hashlib.md5(text.encode(&quot;utf-8&quot;)).hexdigest()[:12]
+</code></pre>
+<p>Ví dụ: CV kế toán ở chương 6 có <code>doc_id = "c94f1a9af5c3"</code> — đó chính là 12 ký tự md5 đầu của nó.
+Từ giờ muốn nhắc tới CV nào chỉ cần 12 ký tự này, và tên file JSON cũng là nó.</p>
+<p><strong>2. PII masking (che thông tin cá nhân).</strong> PII = <em>Personally Identifiable Information</em> —
+email, số điện thoại, link cá nhân. Không cần thiết cho việc trích kỹ năng, lại nhạy cảm,
+nên thay bằng nhãn vô hại:</p>
+<pre><code class="language-python">def mask_pii(text: str) -&gt; str:
+    for pattern, repl in _PII_RE:      # list các (regex, nhãn thay thế)
+        text = pattern.sub(repl, text) # regex = &quot;công thức tìm chữ&quot;, sub = thay thế
+    return text
+</code></pre>
+<p><code>_PII_RE</code> gồm 3 quy tắc: email → <code>[EMAIL]</code>, dãy số kiểu điện thoại → <code>[PHONE]</code>, đường link → <code>[URL]</code>.
+Ví dụ: <code>"liên hệ john@mail.com"</code> → <code>"liên hệ [EMAIL]"</code>.</p>
+<p><strong>3. Bảng cặp (pairs.csv).</strong> Sau làm sạch, lưu 2 thứ: (a) bảng cặp 93.733 dòng —
+<code>pair_id, resume_id, jd_id, label, split, domain</code> — không chứa văn bản, chỉ chứa <em>khóa nối</em>;
+(b) bảng văn bản đã sạch <code>cv_docs.csv</code> (643 dòng) và <code>jd_docs.csv</code> (351 dòng), mỗi dòng một
+<code>doc_id</code> + toàn bộ chữ. Tách cặp khỏi văn bản để bạn nhóm dễ tra.</p>
+<p><strong>Nhãn (label)</strong> trong pairs.csv là mức khớp do người gán: <code>No Fit</code> 60.313 cặp /
+<code>Potential</code> 13.907 / <code>Good</code> 5.797 — lệch nặng về "không khớp", thông tin đáng nhớ
+khi bạn nhóm huấn luyện model (chương 9).</p>
+<h2>2.3 Ví dụ chạy thật</h2>
+<pre><code>80.017 dòng train + 13.716 dòng test
+  → 93.733 cặp unique
+  → 643 CV unique + 351 JD unique
+  → 994 văn bản đã ẩn PII, có doc_id
+</code></pre>
+<hr />
+<h1>Chương 3 — Danh bạ kỹ năng: dạy máy "từ nào là kỹ năng"</h1>
+<h2>3.1 Vấn đề</h2>
+<p>TF-IDF (chương 4) chấm điểm <strong>tất cả</strong> từ: "management", "responsible", "team"... đều được điểm,
+kể cả khi chúng không phải kỹ năng. Cần một <strong>danh bạ (lexicon)</strong> — danh sách các từ/ cụm từ
+được công nhận là kỹ năng — để lọc.</p>
+<h2>3.2 Hai lớp danh bạ</h2>
+<p><strong>Lớp 1 — gieo từ dữ liệu thật (707 kỹ năng).</strong> Rất nhiều CV có mục "Skills: Java, SQL, ..."
+ở cuối. Ta tách các mục này ra, đếm xem mục nào xuất hiện ở <strong>ít nhất 5 CV</strong> (từ hiếm hoi
+xuất hiện 1 lần nhiều khả năng là lỗi gõ) — được 707 kỹ năng tin cậy, lưu ở
+<code>data/skills_lexicon.txt</code> (file văn bản thường, muốn thêm/sửa kỹ năng chỉ cần mở file sửa).</p>
+<p><strong>Lớp 2 — nguồn ngoài (6.108 kỹ năng).</strong> 707 kỹ năng là <em>điều máy học từ chính dữ liệu này</em> —
+sẽ bị "bóng" của dữ liệu: nếu 994 CV không ai biết Docker thì Docker không vào danh bạ.
+Nên gom thêm từ 3 bộ dữ liệu công khai trên HuggingFace (job-skill-set, esco/skillspan, techwolf),
+làm sạch cùng quy tắc (2–40 ký tự, ≤4 từ, không toàn số) → 6.108 kỹ năng.</p>
+<p><strong>Danh bạ tổng: 6.815 kỹ năng.</strong></p>
+<h2>3.3 Code tách block Skills</h2>
+<pre><code class="language-python">def parse_skills_block(text: str, max_chars: int = 2000, max_items: int = 80):
+    &quot;&quot;&quot;Tách danh sách skill sau từ 'Skills' cuối cùng của CV (pseudo ground truth).&quot;&quot;&quot;
+    last = None
+    for last in SKILL_HDR_RE.finditer(str(text)):
+        pass  # lấy lần xuất hiện CUỐI (block Skills thường nằm cuối CV)
+    if last is None:
+        return []
+    tail = str(text)[last.end(): last.end() + max_chars]
+    items = []
+    for raw in tail.split(&quot;,&quot;)[:max_items]:
+        s = norm(raw.strip(&quot; .;:-&quot;))
+        # lọc nhiễu: bỏ quá dài / quá 4 từ / toàn số
+        if 2 &lt;= len(s) &lt;= 40 and len(s.split()) &lt;= 4 and not s.isdigit():
+            items.append(s)
+    return items
+</code></pre>
+<p>Giải thích từng dòng:
+- <code>SKILL_HDR_RE</code> là regex tìm đúng chữ "Skills" đứng riêng (không khớp "Skillset");
+  <code>finditer</code> trả về <em>tất cả</em> chỗ khớp — vòng lặp <code>for...pass</code> chỉ để giữ <strong>chỗ cuối cùng</strong>,
+  vì mục Skills thật thường nằm cuối CV (đầu CV hay có dòng "Skills required: ...").
+- <code>tail</code>: cắt 2.000 ký tự ngay sau chữ "Skills" — vùng chứa danh sách.
+- <code>tail.split(",")</code>: danh sách kỹ năng thường ngăn cách bởi dấu phẩy → cắt theo phẩy,
+  tối đa 80 mục.
+- <code>norm(...)</code>: viết thường + gọn khoảng trắng ("  Java  " → "java").
+- Dòng lọc: mục ngắn quá (&lt;2 ký tự), dài quá (&gt;40 ký tự hay &gt;4 từ — là câu chứ không phải
+  kỹ năng), hoặc toàn chữ số → bỏ.</p>
+<p><strong>Ví dụ.</strong> Cho đoạn <code>"... PROJECT SKILLS: Java, SQL, Spring Boot, 2019, Team player"</code> →
+<code>["java", "sql", "spring boot", "team player"]</code> ("2019" bị loại vì toàn số).</p>
+<h2>3.4 Code dựng danh bạ từ nhiều CV</h2>
+<pre><code class="language-python">def build_lexicon(texts, min_docs: int = LEXICON_MIN_DOCS) -&gt; list[str]:
+    &quot;&quot;&quot;Đếm tần suất item trong block Skills trên NHIỀU doc, giữ item phổ biến.&quot;&quot;&quot;
+    counts: dict[str, int] = {}
+    for t in texts:
+        for s in set(parse_skills_block(t)):  # set: đếm theo SỐ DOC, không theo số lần
+            counts[s] = counts.get(s, 0) + 1
+    ok = ((s, c) for s, c in counts.items() if c &gt;= min_docs and s not in STOP_SKILLS)
+    return sorted((s for s, _ in ok), key=len, reverse=True)
+</code></pre>
+<p>Điểm tinh tế: <code>set(parse_skills_block(t))</code> — vì gọi qua <code>set</code>, một kỹ năng lặp 10 lần trong
+<em>CÙNG MỘT</em> CV chỉ được đếm 1 lần. Ta muốn "kỹ năng này quen thuộc với bao nhiêu <strong>người</strong>",
+không phải "CV này thích viết nó mấy lần". <code>STOP_SKILLS</code> là 10 từ rác hay gặp
+(state, client, phone, letters, ...) bị loại thủ công.</p>
+<hr />
+<h1>Chương 4 — TF-IDF: chấm điểm từ thông minh hơn đếm trần</h1>
+<p>Đây là trái tim của phần trích xuất. Đọc kỹ chương này là hiểu 80% pipeline.</p>
+<h2>4.1 Vì sao đếm trần thì dở</h2>
+<p>Cách ngây thơ nhất: đếm từ nào xuất hiện nhiều trong CV → từ đó quan trọng. Nhưng:</p>
+<ul>
+<li>"experience" xuất hiện trong <strong>798/994</strong> văn bản — đếm trần thì nó top 1 mọi CV,
+  trong khi nó chẳng nói gì về ứng viên này.</li>
+<li>"peachtree" (phần mềm kế toán) chỉ xuất hiện ở <strong>15</strong> CV — nhưng nếu CV <em>này</em> có nó,
+  đó là dấu hiệu đặc trưng rất mạnh.</li>
+</ul>
+<p>Cần một cách chấm: <strong>từ quan trọng = xuất hiện nhiều trong văn bản này, NHƯNG hiếm ở nơi khác.</strong>
+Đó chính là TF-IDF.</p>
+<h2>4.2 Hai thành phần</h2>
+<p><strong>TF (Term Frequency — tần suất từ trong văn bản này).</strong> Đếm số lần từ xuất hiện, rồi <em>làm dịu
+bằng logarit</em> (tham số <code>sublinear_tf</code>):</p>
+<pre><code>tf = 1 + ln(đếm)
+</code></pre>
+<p>Logarit tự nhiên <code>ln</code> làm số lớn "xẹp" xuống: xuất hiện 10 lần không quan trọng gấp 10 lần
+mà chỉ gấp ~2,4 lần (vì ln(10) ≈ 2,3). Tránh để từ lặp nhiều quá lấn át.</p>
+<p><strong>IDF (Inverse Document Frequency — nghịch độ hiếm giữa các văn bản).</strong> Với <em>n</em> văn bản:</p>
+<pre><code>idf = ln((1 + n) / (1 + df)) + 1
+</code></pre>
+<p>trong đó <code>df</code> = số văn bản chứa từ đó. Từ càng hiếm (df nhỏ) → idf càng lớn.
+Cộng 1 hai chỗ để không bao giờ ra 0 hay số âm.</p>
+<p><strong>Điểm cuối = TF × IDF</strong>, rồi <strong>chuẩn hóa L2</strong> (chia toàn bộ vector cho độ dài của chính nó
+căn bậc hai tổng bình phương — để độ dài vector luôn bằng 1). Mục đích chuẩn hóa: CV dài
+5 trang và CV ngắn 1 trang so sánh công bằng, không phải CV nào chữ dày hơn là thắng.</p>
+<h2>4.3 Bảng số thật — chạy trên CV kế toán c94f1a9af5c3</h2>
+<p>(Máy fit trên 994 văn bản; từ vựng gồm <strong>32.704</strong> mục từ.)</p>
+<table>
+<thead>
+<tr>
+<th>Từ</th>
+<th>Đếm trong CV này</th>
+<th>df (số văn bản chứa /994)</th>
+<th>TF = 1+ln(đếm)</th>
+<th>IDF</th>
+<th>TF×IDF</th>
+<th>Điểm sau L2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>peachtree</td>
+<td>2</td>
+<td>15</td>
+<td>1.69</td>
+<td>5.13</td>
+<td>8.7</td>
+<td><strong>0.1695</strong></td>
+</tr>
+<tr>
+<td>cpa</td>
+<td>3</td>
+<td>55</td>
+<td>2.10</td>
+<td>3.88</td>
+<td>8.1</td>
+<td>0.1588</td>
+</tr>
+<tr>
+<td>accounting</td>
+<td>7</td>
+<td>310</td>
+<td>2.95</td>
+<td>2.16</td>
+<td>6.4</td>
+<td>0.1178</td>
+</tr>
+<tr>
+<td>experience</td>
+<td>0*</td>
+<td>798</td>
+<td>—</td>
+<td>1.22</td>
+<td>—</td>
+<td>0.0000</td>
+</tr>
+</tbody>
+</table>
+<p>* Kỳ thú: trong CV này có chữ "experienced" — đếm <em>chuỗi con</em> (substring — dãy ký tự nằm trong
+dãy khác, "cat" là chuỗi con của "category") thì "experience" thấy 1 lần. Nhưng bộ tách từ
+(<em>tokenizer</em>) chỉ nhận <strong>từ nguyên vẹn</strong>: "experienced" là một từ khác, không sinh token
+"experience" → điểm đúng bằng 0. Đây là lý do sau này cần "máy dò" thứ hai (chương 5.2).</p>
+<p>Đọc bảng: <strong>"peachtree" chỉ 2 lần vẫn thắng "accounting" 7 lần</strong> (8.7 vs 6.4) — độ hiếm
+bù quá mức đếm. Còn "experience" có df 798 → idf chỉ 1.22, gần mức sàn. Cơ chế hoạt động
+đúng như thiết kế.</p>
+<h2>4.4 Code fit — và giải thích 4 tham số</h2>
+<pre><code class="language-python">def fit(texts) -&gt; TfidfVectorizer:
+    vec = TfidfVectorizer(ngram_range=(1, 2), min_df=3, stop_words=&quot;english&quot;, sublinear_tf=True)
+    vec.fit(texts)
+    return vec
+</code></pre>
+<ul>
+<li><code>ngram_range=(1, 2)</code>: ngoài từ đơn còn giữ <strong>bigram</strong> (cặp 2 từ liền nhau) — "sql" và
+  "sql server" là 2 mục từ riêng.</li>
+<li><code>min_df=3</code>: bỏ mục từ xuất hiện trong &lt;3 văn bản (lọc lỗi gõ một lần gặp).</li>
+<li><code>stop_words="english"</code>: bỏ từ vô nghĩa tiếng Anh (the, and, with...).</li>
+<li><code>sublinear_tf=True</code>: bật TF làm dịu logarit như trên.</li>
+</ul>
+<p><code>fit</code> = <em>học từ toàn bộ 994 văn bản</em>: dựng từ vựng + tính bảng df (để có idf).
+Đây là bước "soạn giáo án" — chưa đụng tới việc chấm từng văn bản.</p>
+<h2>4.5 Top-8 thật của CV mẫu — và 2 bài học</h2>
+<p>Top 8 mục từ điểm cao nhất của CV c94f1a9af5c3:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Mục từ</th>
+<th>Điểm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>cpa firm</td>
+<td>0.2079</td>
+</tr>
+<tr>
+<td>2</td>
+<td>peachtree accounting</td>
+<td>0.2079</td>
+</tr>
+<tr>
+<td>3</td>
+<td>area network</td>
+<td>0.2019</td>
+</tr>
+<tr>
+<td>4</td>
+<td>installed new</td>
+<td>0.1924</td>
+</tr>
+<tr>
+<td>5</td>
+<td>local area</td>
+<td>0.1885</td>
+</tr>
+<tr>
+<td>6</td>
+<td>web site</td>
+<td>0.1790</td>
+</tr>
+<tr>
+<td>7</td>
+<td>accountant 01</td>
+<td>0.1739</td>
+</tr>
+<tr>
+<td>8</td>
+<td>cincinnati</td>
+<td>0.1739</td>
+</tr>
+</tbody>
+</table>
+<p>Hai bài học nhìn thẳng vào:</p>
+<ol>
+<li><strong>Bigram hiếm chiếm hết bảng</strong> — "cpa firm", "peachtree accounting" là cặp từ ít ai viết,
+   idf khủng. Điều này tốt cho độ đặc trưng, nhưng nghĩa là <strong>bắt buộc</strong> phải lọc qua danh bạ:
+   "installed new", "web site" không phải kỹ năng.</li>
+<li><strong>Rác lọt được</strong>: "accountant 01" là chức danh dính mảnh ngày "01/2013" — bộ tách từ
+   cắt bỏ dấu "/". Không có máy hoàn hảo; pipeline phải <strong>nhiều tầng lọc</strong> (điểm cao →
+   có trong danh bạ → không trùng nhau → top 25).</li>
+</ol>
+<hr />
+<h1>Chương 5 — Từ điểm số → 25 kỹ năng cuối</h1>
+<h2>5.1 <code>topk_of</code> — lấy top điểm, lọc danh bạ, dừng đúng 25</h2>
+<pre><code class="language-python">def topk_of(X, i, features, lex_set, top_k=TOP_K):
+    row = X.getrow(i)
+    order = sorted(range(len(row.data)), key=lambda j: (-row.data[j], features[row.indices[j]]))
+    out = []
+    for j in order[:TOP_CANDIDATES]:
+        term = features[row.indices[j]]
+        if term in lex_set:
+            out.append((term, float(row.data[j])))
+            if len(out) == top_k:
+                break
+    kept = set(dedup_overlap([t for t, _ in out]))
+    return [(t, s) for t, s in out if t in kept]
+</code></pre>
+<p>Từng dòng:
+- <code>X</code> là <em>ma trận thưa</em> (sparse matrix — bảng điểm mà đa số ô là 0, máy chỉ lưu các ô khác 0
+  cho nhẹ). <code>getrow(i)</code> lấy dòng i = điểm của một văn bản.
+- <code>order</code>: sắp thứ tự các ô theo điểm <strong>giảm dần</strong> (<code>-row.data[j]</code> vì sorted tăng dần mặc định);
+  khi hai ô bằng điểm, xếp theo tên (<code>features[...]</code>) — để hai lần chạy cho kết quả <em>giống hệt nhau</em>.
+- Vòng lặp duyệt <strong>tối đa 200 ô cao nhất</strong> (<code>TOP_CANDIDATES=200</code>), chỉ giữ ô mà tên nằm trong
+  danh bạ; <strong>dừng ngay khi đủ 25</strong>.
+- Cuối cùng lọc trùng bằng <code>dedup_overlap</code> (mục 5.3).</p>
+<p>Vì sao dừng ở 200 thay vì quét hết 32.704 mục? Tối ưu nhỏ: kỹ năng nằm ngoài top 200 điểm thì
+cũng chẳng được chọn vào top 25.</p>
+<h2>5.2 Máy dò thứ hai: scan regex</h2>
+<p>TF-IDF có 3 điểm mù:
+1. <strong>Từ nguyên vẹn</strong> — "experienced" không sinh "experience";
+2. <strong>Từ hiếm bị min_df loại</strong> — một kỹ năng chỉ xuất hiện ở 2/994 văn bản bị vứt khỏi từ vựng;
+3. <strong>Danh bạ 6.815 kỹ năng</strong> chỉ dùng để lọc — nhưng có kỹ năng nằm ngoài top 200 điểm
+   dù CV <em>có viết</em> nó.</p>
+<p>Nên thêm máy dò thứ hai kiểu "Ctrl+F" quét <strong>toàn bộ văn bản</strong> tìm từng kỹ năng trong danh bạ:</p>
+<pre><code class="language-python">def make_scan_re(lexicon: list[str]):
+    &quot;&quot;&quot;Regex Ctrl+F: (?&lt;![a-z0-9])(kỹ năng 1|kỹ năng 2|...)(?![a-z0-9]) — dài trước ngắn sau.&quot;&quot;&quot;
+    alts = sorted((re.escape(t) for t in lexicon), key=len, reverse=True)
+    return re.compile(&quot;(?&lt;![a-z0-9])(?:&quot; + &quot;|&quot;.join(alts) + &quot;)(?![a-z0-9])&quot;)
+</code></pre>
+<p>Giải phẫu cái regex (biểu thức chính quy — "công thức tìm chữ"):</p>
+<ul>
+<li><code>re.escape(t)</code> — <em>thoát</em> các ký tự đặc biệt của kỹ năng, để "c++" tìm đúng chữ "c++"
+  chứ không hiểu "+" là toán tử của regex.</li>
+<li><code>(...|...)</code> — hoặc: khớp kỹ năng này HOẶC kỹ năng kia.</li>
+<li><strong>Sắp dài trước, ngắn sau</strong>: regex với "hoặc" khớp nhánh đầu tiên gặp được — nếu "sql"
+  đứng trước "sql server", chỗ nào có "sql server" regex cũng dừng ở "sql" và bỏ lỡ bản dài.</li>
+<li><code>(?&lt;![a-z0-9])</code> — <em>lookaround nhìn lùi</em> (kiểm tra mà không "ăn" ký tự): "ký tự NGAY TRƯỚC
+  không được là chữ cái thường hoặc số".</li>
+<li><code>(?![a-z0-9])</code> — <em>lookaround nhìn tới</em>: "ký tự NGAY SAU không được là chữ cái thường hoặc số".</li>
+</ul>
+<p><strong>Vì sao không dùng <code>\b</code> (biên từ — ranh giới chữ/không-chữ) như người ta vẫn làm?</strong>
+Vì kỹ năng chứa ký tự đặc biệt. Xét "c++": sau dấu <code>+</code> là dấu phẩy. <code>\b</code> yêu cầu một bên là
+ký tự từ (chữ/số/gạch dưới) và bên kia không — mà <code>+</code> và <code>,</code> ĐỀU không phải ký tự từ →
+không có biên nào ở đó → "c++" <strong>không bao giờ</strong> khớp với <code>\bc\+\+\b</code>. Lookaround
+"không phải chữ/số" thì không quan tâm bên kia là gì → dấu phẩy được thông qua.
+(Lỗi này từng có thật: sửa xong bắt được thêm 362 dòng kỹ năng chứa ký tự đặc biệt như c++, .net, c#.)</p>
+<h2>5.3 <code>dedup_overlap</code> — bỏ từ bị chứa</h2>
+<p>Quét xong thường có cả "sql" lẫn "sql server" — nhưng hai ô gần trùng nhau chiếm 2 slot top-25
+trong khi đáp án chỉ liệt kê 1 dạng. Nên bỏ từ bị <strong>chứa hoàn toàn</strong> trong từ khác:</p>
+<pre><code class="language-python">def dedup_overlap(terms) -&gt; list[str]:
+    &quot;&quot;&quot;Bỏ term bị CHỨA trong term khác cùng danh sách (&quot;sql&quot; ⊂ &quot;sql server&quot;): ...&quot;&quot;&quot;
+    out = []
+    for a in terms:
+        if not any(
+            a != b and re.search(r&quot;(?&lt;![a-z0-9])&quot; + re.escape(a) + r&quot;(?![a-z0-9])&quot;, b)
+            for b in terms
+        ):
+            out.append(a)
+    return out
+</code></pre>
+<p>Với mỗi từ <code>a</code>, hỏi: có từ khác <code>b</code> nào mà tìm thấy <code>a</code> như một từ nguyên vẹn bên trong <code>b</code>?
+Có → bỏ <code>a</code>. ("sql" bị chứa trong "sql server" → chỉ giữ "sql server".) Đo thử trên bộ thi:
++1.2 điểm phần trăm precision, mất ~0.8 recall — chấp nhận, vì output sạch hơn cho matching.</p>
+<h2>5.4 Ghép hai máy lại</h2>
+<pre><code class="language-python">def extract_skills(text: str, vec, features: list[str], lexicon_set: set, scan_re):
+    &quot;&quot;&quot;Trả về (danh sách skill gộp, top-K tfidf, vị trí xuất hiện đầu của từng skill).&quot;&quot;&quot;
+    X = vec.transform([text])
+    top = [t for t, _ in topk_of(X, 0, features, lexicon_set)]
+    ntext = norm(text)
+    pos: dict[str, int] = {}
+    for m in scan_re.finditer(ntext):
+        w = norm(m.group(0))
+        if w not in pos and w not in STOP_SKILLS:
+            pos[w] = m.start()
+    merged = dedup_overlap(list(top) + sorted(set(pos) - set(top)))
+    return merged, top, pos
+</code></pre>
+<ul>
+<li>Máy 1 (<code>topk_of</code>): 25 kỹ năng điểm cao nhất.</li>
+<li>Máy 2 (<code>scan_re.finditer</code>): mọi kỹ năng trong danh bạ xuất hiện trong văn bản, kèm <strong>vị trí</strong>
+  ký tự xuất hiện đầu tiên (dùng ở chương 6 để chia required/preferred).</li>
+<li><code>merged</code>: gộp hai danh sách (phần scan thêm vào chỉ những kỹ năng máy 1 chưa bắt được),
+  lọc trùng chứa một lần cuối. Chữ thường + sắp abc cho ổn định.</li>
+</ul>
+<p><strong>Kết quả thực tế:</strong> trung bình mỗi CV ra ~25 kỹ năng (chính xác là 25 khi máy 1 đủ),
+JD ra ~30 kỹ năng bắt buộc + 8 kỹ năng ưu tiên.</p>
+<hr />
+<h1>Chương 6 — Các trường còn lại của JSON (tên, kinh nghiệm, học vấn, JD)</h1>
+<p>TF-IDF chỉ lo danh sách kỹ năng. Các trường còn lại là các <strong>regex parser nhỏ</strong> —
+mỗi trường một quy tắc tìm chữ. Nguyên tắc chung: <strong>không bắt được thì trả <code>null</code>,
+đừng bịa</strong> — null trung thực có giá trị hơn dữ liệu sai.</p>
+<h2>6.1 CV — <code>name</code> (tên ứng viên)</h2>
+<pre><code class="language-python">def cv_name(text: str) -&gt; str | None:
+    &quot;&quot;&quot;Tên = dòng đầu tiên của CV nếu nó trông giống họ tên người. ...&quot;&quot;&quot;
+    NAME_STRICT = re.compile(r&quot;^[A-Z][a-zA-Z.'-]+(?: [A-Z][a-zA-Z.'-]+){1,4}$&quot;)
+    for line in str(text).splitlines()[:1]:
+        line = ICON_RE.sub(&quot;&quot;, clean_line(line)).strip(&quot; -|&quot;)
+        if not line or &quot;@&quot; in line or any(c.isdigit() for c in line):
+            return None
+        if NAME_JUNK_RE.search(line) or not NAME_STRICT.match(line):
+            return None
+        return line
+    return None
+</code></pre>
+<p>Quy tắc nghiêm ngặt: dòng <strong>đầu tiên</strong> phải là 2–5 từ, mỗi từ viết hoa đầu,
+chữ cái và dấu <code>' . -</code>, không có số, không có @, không khớp danh sách từ rác
+(NAME_JUNK_RE: education, summary, curriculum vitae, university...).</p>
+<p><strong>Sự thật thú vị về corpus:</strong> trên 643 CV của bộ matching, quy tắc này bắt được <strong>0 tên</strong>.
+Không phải máy dở — corpus này sinh ra đã <em>ẩn tên người</em> và các dòng chữ bị dính vào nhau
+("SummaryAccountant with over a decade...") nên không còn dòng tên riêng. Trả <code>null</code> là đúng.
+Trên bộ test ngoài gồm <strong>CV thật từ PDF</strong> (chương 8), cùng quy tắc bắt được tên ở <strong>101/1000</strong>
+CV — vì CV thật thường mở đầu bằng tên. Cùng một quy tắc, dữ liệu khác, kết quả khác —
+đó là lý do phải đo phủ trường trên từng bộ dữ liệu riêng.</p>
+<h2>6.2 CV — <code>experience_years</code> (số năm kinh nghiệm), 2 tầng</h2>
+<p><strong>Tầng 1 — tìm câu tuyên bố:</strong> regex dạng "N years ... experience" (VD: "over 10 years of
+experience in accounting"), lấy số lớn nhất ≤ 45 (loại "2019 years" do lỗi tách).</p>
+<p><strong>Tầng 2 — cộng dồn khoảng thời gian:</strong> nếu không có câu tuyên bố, tìm mục "Experience",
+trong đó gom các cặp năm <code>2015 – 2018</code>, <code>2019 – Present</code>, <strong>gộp các khoảng chồng nhau</strong>
+(làm việc 2015–2018 và 2018–2020 là 5 năm chứ không phải 7) rồi cộng lại:</p>
+<pre><code class="language-python">spans.sort()
+merged, total = list(spans[0]), 0
+for a, b in spans[1:]:
+    if a &lt;= merged[1]:                       # chồng nhau → kéo dài khoảng đang gộp
+        merged[1] = max(merged[1], b)
+    else:                                    # rời nhau → cộng khoảng cũ, mở khoảng mới
+        total += merged[1] - merged[0]
+        merged = [a, b]
+total += merged[1] - merged[0]
+</code></pre>
+<p>Phủ trên 643 CV: <strong>143 CV (22.2%)</strong> có số năm. Phần còn lại CV viết kiểu "3/2015 – 6/2018 tại
+công ty A; 2019 – nay tại công ty B" không theo khuôn nào — không ép, trả null.</p>
+<h2>6.3 CV — <code>education</code> (học vấn)</h2>
+<pre><code class="language-python">def cv_education(text: str) -&gt; dict:
+    text = str(text)
+    block = text
+    msec = SEC_HEADER_RE.search(text)          # chia CV thành mục theo tiêu đề in hoa
+    if msec and re.match(r&quot;(?i)(education|academic)&quot;, msec.group(1)):
+        nxt = SEC_HEADER_RE.search(text, msec.end())
+        block = text[msec.end(): nxt.start() if nxt else len(text)][:900]
+    ...
+</code></pre>
+<p>Cách làm: (1) cắt riêng <strong>mục Education</strong> (từ tiêu đề "EDUCATION" tới tiêu đề mục tiếp theo,
+tối đa 900 ký tự); (2) trong đó tìm:</p>
+<ul>
+<li><strong>degree</strong> — bằng cấp, chuẩn hóa về từ điển cố định: PhD / Master / Bachelor / MBA /
+  Associate / Diploma ("B.S.", "Bachelor of Science", "BS" → cùng một dạng);</li>
+<li><strong>major</strong> — chuyên ngành: mẫu "Bachelor <em>of</em> X" hoặc "degree <em>in</em> X";</li>
+<li><strong>university</strong> — tên trường: "X University" hoặc "University of X".</li>
+</ul>
+<p>Phủ: degree <strong>99.7%</strong>, major <strong>62.1%</strong>, university <strong>93.0%</strong>. Degree gần như luôn bắt được vì
+CV nào cũng ghi bằng; major khó hơn vì nhiều CV chỉ ghi tên trường.</p>
+<h2>6.4 JD — <code>job_title</code> (chức danh)</h2>
+<p>Tầng 1: dòng "Job Title: ..." (cắt trước các từ khóa Location/Duration/Pay — nhiều JD ghi
+"Job Title: Java Developer Location: New York" liền một dòng). Tầng 2 (fallback — <em>phương án
+dự phòng</em>): dòng đầu tiên trong 5 dòng nếu 1–10 từ và không là rác
+("Job details", "Location ...", "Salary ..." — danh sách từ rác tường minh).
+Phủ: <strong>179/351 (51.0%)</strong> — sạch hơn nhiều so với trước khi lọc rác (56.1% nhưng lắm title rác).</p>
+<h2>6.5 JD — chia <code>required_skills</code> / <code>preferred_skills</code></h2>
+<p>JD thường có cụm đánh dấu phần "có thì tốt": <em>nice to have</em>, <em>preferred</em>, <em>bonus</em>, <em>desirable</em>.
+Ý tưởng: kỹ năng <strong>xuất hiện lần đầu sau</strong> cụm đó → ưu tiên; trước → bắt buộc.
+May mắn là ta đã lưu vị trí ký tự của từng kỹ năng ở chương 5.4!</p>
+<pre><code class="language-python">def jd_split_skills(text: str, skills: list[str], pos: dict[str, int]) -&gt; tuple[list, list]:
+    &quot;&quot;&quot;Skill có lần xuất hiện ĐẦU TIÊN sau marker preferred → preferred, ngược lại → required.&quot;&quot;&quot;
+    mp = PREFERRED_RE.search(str(text))
+    if not mp:
+        return list(skills), []
+    cut = mp.start()
+    required  = [s for s in skills if pos.get(norm(s), 10**9) &lt; cut]
+    preferred = [s for s in skills if pos.get(norm(s), 10**9) &gt;= cut]
+    return required, preferred
+</code></pre>
+<p><code>pos.get(norm(s), 10**9)</code>: kỹ năng mà scan không tìm thấy vị trí (hiếm, chỉ có trong top
+TF-IDF) coi như vị trí vô cùng → rơi vào preferred (an toàn: không nên bắt buộc thứ không
+tìm thấy trong văn bản). Không có marker → toàn bộ là required.</p>
+<h2>6.6 JD — <code>required_years</code> (số năm yêu cầu)</h2>
+<p>Tìm mẫu số năm ("5+ years"), nhưng <strong>chỉ nhận khi trong 60 ký tự tiếp theo</strong> có chữ
+experience/expertise — để "5 years ago I..." không bị bắt nhầm. Lấy max ≤ 30.
+Phủ: <strong>234/351 (66.7%)</strong>.</p>
+<h2>6.7 Hai sản phẩm mẫu (nguyên vẹn)</h2>
+<p><strong>CV c94f1a9af5c3</strong> — kế toán, học Cincinnati:</p>
+<pre><code class="language-json">{
+  &quot;doc_id&quot;: &quot;c94f1a9af5c3&quot;,
+  &quot;name&quot;: null,
+  &quot;skills&quot;: [&quot;peachtree&quot;, &quot;cpa&quot;, &quot;accounting&quot;, &quot;business administration&quot;, &quot;network&quot;, &quot;accountant&quot;],
+  &quot;experience_years&quot;: null,
+  &quot;education&quot;: {&quot;degree&quot;: &quot;B.S&quot;, &quot;major&quot;: null, &quot;university&quot;: &quot;University of Cincinnati&quot;}
+}
+</code></pre>
+<p><strong>JD 0e5f1393c8cd</strong> — vị trí Dynamics 365:</p>
+<pre><code class="language-json">{
+  &quot;doc_id&quot;: &quot;0e5f1393c8cd&quot;,
+  &quot;job_title&quot;: &quot;Software Engineering Supervisor (Lead Dynamics 365 Developer - ERP) - W2&quot;,
+  &quot;required_skills&quot;: [&quot;dynamics 365&quot;, &quot;erp&quot;, &quot;software engineering&quot;, &quot;supervisor&quot;, &quot;developer&quot;],
+  &quot;preferred_skills&quot;: [&quot;curious&quot;, &quot;strategic thinking&quot;, &quot;technical knowledge&quot;, &quot;articulate&quot;],
+  &quot;required_years&quot;: 6
+}
+</code></pre>
+<p>Nhìn <code>preferred_skills</code>: "curious", "articulate" — từ mềm mô tả tính cách lọt qua vì danh bạ
+ngoài (6.108 kỹ năng) lấy cả từ mô tả con người. Đây là <strong>điểm yếu đã biết</strong>, ghi lại trung thực
+trong README — bước cải thiện kế tiếp có thể lọc soft skill (kỹ năng mềm/mô tả tính cách)
+ra khỏi danh bạ.</p>
+<hr />
+<h1>Chương 7 — Chấm điểm máy: precision / recall và bài thi 80/20</h1>
+<h2>7.1 Hai khái niệm chấm điểm</h2>
+<ul>
+<li><strong>Precision (độ chính xác):</strong> "máy ghi ra 25 kỹ năng — bao nhiêu % là đúng?"
+  Cao = máy <em>ít nói dối</em>.</li>
+<li><strong>Recall (độ bao phủ):</strong> "CV thật liệt kê 40 kỹ năng — máy bắt được bao nhiêu %?"
+  Cao = máy <em>ít bỏ sót</em>.</li>
+</ul>
+<p>Hai bên đánh đổi: chỉ ghi 1 kỹ năng chắc chắn đúng → precision 100% nhưng recall thảm hại;
+ghi 500 từ bừa → recall tốt nhưng precision tệ. Phải cân bằng.</p>
+<h2>7.2 Bài thi 80/20 (held-out evaluation)</h2>
+<p>Nguyên tắc giáo dục: <strong>thi bằng đề chưa từng thấy.</strong> Chia 643 CV: 80% (514 CV) cho máy "học"
+(dựng danh bạ + bảng idf), 20% (129 CV) làm "đề thi". Nếu dùng chính dữ liệu đã học để chấm
+điểm, máy chỉ đang <em>đọc lại bài</em>, không phải <em>kiểm tra hiểu biết</em> (jargon: overfitting —
+học vẹt).</p>
+<pre><code class="language-python">def heldout_eval(cv: pd.DataFrame, extra: list[str]) -&gt; None:
+    &quot;&quot;&quot;Eval 80/20 Y HỆT pipeline cũ ... để số liệu so sánh trực tiếp.&quot;&quot;&quot;
+    rng = np.random.RandomState(RANDOM_STATE)       # seed 42: xáo kiểu gì cũng y hệt lần sau
+    idx = rng.permutation(len(cv))                  # xáo trộn thứ tự 643 CV
+    n_tr = int(len(cv) * EVAL_SPLIT)                # int(643 * 0.8) = 514
+    tr, ho = cv.iloc[idx[:n_tr]], cv.iloc[idx[n_tr:]]   # 514 học / 129 thi
+
+    lex_ho = build_lexicon(tr[&quot;text&quot;])              # danh bạ CHƯA từng thấy 129 đề thi
+    lex_ho_set = set(lex_ho) | set(extra)           # + danh bạ ngoài (không thấy CV nào)
+    vec_ho = fit(tr[&quot;text&quot;])                        # bảng IDF cũng chỉ học từ 514 CV
+    feat_ho = list(vec_ho.get_feature_names_out())
+    X_ho = vec_ho.transform(ho[&quot;text&quot;])             # chấm đề thi bằng bảng cũ — KHÔNG fit lại
+
+    precs, recs, n_gt = [], [], 0
+    for i, (_, r) in enumerate(ho.iterrows()):
+        gt = set(parse_skills_block(r[&quot;text&quot;]))     # đáp án: block &quot;Skills&quot; thật của CV
+        topk = topk_of(X_ho, i, feat_ho, lex_ho_set)  # 25 kỹ năng máy chọn
+        if not topk or not gt:
+            continue                                # không đáp án → không chấm được, bỏ qua
+        hits = len({t for t, _ in topk} &amp; gt)       # &amp; = giao tập: đếm trùng nhau
+        precs.append(hits / len(topk))
+        recs.append(hits / len(gt))
+        n_gt += 1
+    print(f&quot;  precision@{TOP_K} = {np.mean(precs):.2%}&quot;)
+    print(f&quot;  recall@{TOP_K}    = {np.mean(recs):.2%}&quot;)
+</code></pre>
+<p>Bốn chi tiết đáng ghi nhớ:</p>
+<ol>
+<li><code>RandomState(42)</code> — <em>seed</em> (hạt giống ngẫu nhiên cố định). "Ngẫu nhiên" nhưng tái lập được:
+   chạy 100 lần vẫn xáo y như vậy → số 39.75% là con số ổn định, không phải may rủi.</li>
+<li><code>fit(tr["text"])</code> <strong>chỉ trên 514 CV</strong>, còn <code>transform(ho["text"])</code> cho 129 đề thi —
+   dùng bảng idf cũ để chấm. (Từng mắc lỗi thật: sơ suất fit lên cả bộ → precision rơi
+   từ 39.75% xuống 5.00%. Con số đẹp bất thường → kiểm tra pipeline trước, tin số sau.)</li>
+<li><code>gt</code> = <em>ground truth</em> (đáp án chuẩn) — tách bằng chính <code>parse_skills_block</code> (chương 3.3),
+   giữ nguyên không chuẩn hóa để so sánh công bằng với số liệu cũ của pipeline trước.</li>
+<li>CV không có block Skills (không có đáp án) → bỏ qua: chấm được <strong>105/129</strong> CV.</li>
+</ol>
+<h2>7.3 Đọc kết quả: 39.75% / 25.33% — thấp mà dùng được</h2>
+<pre><code>precision@25 = 39.75%   (trong 25 kỹ năng máy chọn, ~10 cái đúng đáp án)
+recall@25    = 25.33%   (đáp án trung bình ~16 kỹ năng, máy bắt ~4)
+</code></pre>
+<p>Vì sao thấp mà vẫn chấp nhận? Vì <strong>đáp án hẹp và vòng tròn (circular)</strong>: ground truth là
+block "Skills" mà CV viết, nhưng block đó mỗi CV một kiểu viết, còn danh bạ 6.815 kỹ năng thì
+rộng. Nhiều kỹ năng máy chọn <em>đúng thật</em> (như "accounting") nhưng đáp án CV ghi dạng khác
+("Accounting/Bookkeeping") → bị tính sai. Chỉ số này là <strong>baseline</strong> (mốc chuẩn) để so sánh
+khi thêm phương pháp khác (BERT) — quan trọng là biết con số đến từ đâu, không phải cứ số
+cao là tốt.</p>
+<h2>7.4 Các thí nghiệm đã làm (và bài học)</h2>
+<table>
+<thead>
+<tr>
+<th>Thí nghiệm</th>
+<th>P@25</th>
+<th>R@25</th>
+<th>Kết luận</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Baseline (danh bạ 707, K=25)</td>
+<td>47.53%</td>
+<td>28.44%</td>
+<td>mốc so sánh cũ</td>
+</tr>
+<tr>
+<td>+ danh bạ ngoài 6.108</td>
+<td>39.75%</td>
+<td>25.33%</td>
+<td>P giảm là <strong>đáng chờ đợi</strong>: đáp án hẹp đếm kỹ năng mới là "sai", nhưng coverage ngoài tăng ~2.3× — cái matching cần</td>
+</tr>
+<tr>
+<td>Lấy K=10</td>
+<td>50.29%</td>
+<td>14.58%</td>
+<td>P cao nhưng sót nhiều</td>
+</tr>
+<tr>
+<td>Lấy K=15</td>
+<td>49.03%</td>
+<td>20.75%</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>K=25 (chọn)</strong></td>
+<td>46.37%</td>
+<td>29.25%*</td>
+<td>cân bằng tốt nhất cho matching</td>
+</tr>
+<tr>
+<td>Lấy K=30</td>
+<td>45.88%</td>
+<td>31.46%</td>
+<td>P giảm nhanh hơn R tăng</td>
+</tr>
+</tbody>
+</table>
+<p>* dòng K=25 trong bảng sweep đo trên cấu hình danh bạ 707; số chính thức của pipeline hiện tại
+(danh bạ 6.815) là 39.75/25.33.</p>
+<p>Bài học lớn nhất: <strong>mỗi cải tiến phải đo trên cùng một mặt đo</strong> — nếu đổi cách chấm cùng lúc
+đổi phương pháp thì không biết cái gì làm số tăng/giảm.</p>
+<hr />
+<h1>Chương 8 — Thi ngoài: bộ test 1.099 file từ nguồn khác</h1>
+<h2>8.1 Vì sao cần "thi trường cùng"</h2>
+<p>Học và thi trên cùng một nguồn dữ liệu (cùng kiểu CV sinh ra máy) vẫn có rủi ro <em>quen.</em>
+Số học sinh giỏi một trường đi thi liên trường mới biết trình độ thật. Nên ta dựng bộ test từ
+<strong>nguồn khác hoàn toàn</strong>:</p>
+<ul>
+<li><strong>1.000 CV thật từ PDF</strong> (nguồn d4rk3r trên HuggingFace) + 71 CV Kaggle bù đắp —
+  đọc text bằng <code>pypdf</code>, giữ file ≥500 ký tự, loại trùng;</li>
+<li><strong>100 JD</strong> từ bộ job-descriptions.</li>
+</ul>
+<p>Kiểm tra trùng với corpus chính: CV 1/1000, JD 0/100 — sạch.</p>
+<h2>8.2 Kết quả phủ trường</h2>
+<table>
+<thead>
+<tr>
+<th>Bộ</th>
+<th>≥1 skill</th>
+<th>≥5</th>
+<th>≥10</th>
+<th>TB skill/doc</th>
+<th>zero</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>999 CV ngoài</td>
+<td>94.3%</td>
+<td>74.2%</td>
+<td>57.3%</td>
+<td>25.2</td>
+<td>57</td>
+</tr>
+<tr>
+<td>100 JD ngoài</td>
+<td>100%</td>
+<td>99.0%</td>
+<td>93.0%</td>
+<td>35.9</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>94.3% CV ngoài có ít nhất 1 kỹ năng → pipeline <strong>dùng được với dữ liệu thật</strong>, không chỉ
+  khớp với corpus sinh ra máy.</li>
+<li><strong>57 CV "mù"</strong> — điều tra kỹ thì đó là file PDF bị hỏng khi đọc: trung bình chỉ ~1.237 ký tự
+  (bình thường ~3.823), chữ tiếng Việt mất dấu, ký tự lạ <code>\uf0b1</code> (biểu tượng riêng của font
+  trong PDF, không phải chữ). Không phải lỗi thuật toán — là lỗi <em>đầu vào</em>; ghi rõ để không
+  ai hiểu lầm.</li>
+</ul>
+<hr />
+<h1>Chương 9 — Sơ đồ tổng thể + bàn giao cho bạn cùng nhóm</h1>
+<h2>9.1 Luồng dữ liệu đầy đủ</h2>
+<pre><code>HuggingFace (cần mạng)                      script                    sản phẩm
+────────────────────────────────────────────────────────────────────────────────
+matching_train/test.csv  ──▶ download_data.py ─▶ data/csv/*.csv
+        │
+        ▼
+build_pairs.py   ──▶ data/csv/pairs.csv (93.733 cặp, KHÔNG có text)
+                     data/csv/cv_docs.csv (643) + jd_docs.csv (351)
+        │
+        ▼
+build_lexicon_extra.py ──▶ data/skills_lexicon_extra.txt (6.108)
+        │
+        ▼
+build_testset.py ──▶ data/csv/test_cv_docs.csv (1000) + test_jd_docs.csv (100)
+        │
+        ▼
+extract_json.py  ──▶ data/extracted/cv/&lt;doc_id&gt;.json      (643 file)
+                     data/extracted/jd/&lt;doc_id&gt;.json      (351 file)
+                     data/extracted/test_cv/, test_jd/    (1.099 file)
+                     + in: danh bạ 6.815, vocab 32.704, P/R 39.75/25.33
+</code></pre>
+<h2>9.2 Bạn nhóm dùng output thế nào? 10 dòng code</h2>
+<pre><code class="language-python">import pandas as pd, json
+
+pairs = pd.read_csv(&quot;data/csv/pairs.csv&quot;)   # pair_id, resume_id, jd_id, label, split, ...
+
+def load(bo, doc_id):                        # bo = &quot;cv&quot; hoặc &quot;jd&quot;
+    with open(f&quot;data/extracted/{bo}/{doc_id}.json&quot;, encoding=&quot;utf-8&quot;) as f:
+        return json.load(f)
+
+row = pairs.iloc[0]
+cv = load(&quot;cv&quot;, row[&quot;resume_id&quot;])
+jd = load(&quot;jd&quot;, row[&quot;jd_id&quot;])
+
+can   = set(jd[&quot;required_skills&quot;])           # JD cần gì
+co    = set(cv[&quot;skills&quot;])                    # CV có gì
+trung = can &amp; co                             # giao tập: cần mà có
+thieu = can - co                             # hiệu tập: cần mà không có
+print(row[&quot;label&quot;], f&quot;đủ {len(trung)}/{len(can)} skill bắt buộc; thiếu:&quot;, sorted(thieu)[:5])
+</code></pre>
+<p>Chạy với từng dòng của pairs.csv → mỗi cặp có một "khoảng cách kỹ năng" → đó là đặc trưng
+(feature) đầu vào cho model matching của bạn nhóm. Nhãn <code>label</code> + cột <code>split</code> cho biết cặp nào
+thuộc tập học / tập thi.</p>
+<h2>9.3 Chạy lại toàn bộ (theo đúng thứ tự)</h2>
+<pre><code>python data/download_data.py        # 1. tải dữ liệu gốc (cần mạng)
+python data/build_pairs.py          # 2. làm sạch, dedup, PII → data/csv/
+python data/build_lexicon_extra.py  # 3. gom 6.108 skill ngoài (cần mạng)
+python data/build_testset.py        # 4. dựng bộ test ngoài (cần mạng)
+python data/extract_json.py         # 5. trích xuất JSON + chấm điểm held-out
+</code></pre>
+<p>Chạy riêng bước 5 (khi CSV đã có) là đủ để tái tạo toàn bộ output JSON.
+Muốn sửa danh bạ: mở <code>data/skills_lexicon.txt</code> sửa từng dòng (mỗi dòng một kỹ năng).</p>
+<hr />
+<h1>Chương 10 — Bảng thuật ngữ</h1>
+<table>
+<thead>
+<tr>
+<th>Thuật ngữ</th>
+<th>Nghĩa đơn giản</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TF-IDF</td>
+<td>Công thức chấm điểm từ: quan trọng = hay xuất hiện trong văn bản này × hiếm ở nơi khác</td>
+</tr>
+<tr>
+<td>TF</td>
+<td>Tần suất từ trong chính văn bản này (đã làm dịu logarit)</td>
+</tr>
+<tr>
+<td>IDF</td>
+<td>Độ hiếm của từ trên toàn bộ tập văn bản — càng hiếm càng giá trị</td>
+</tr>
+<tr>
+<td>logarit (ln)</td>
+<td>Hàm làm số lớn "xẹp" lại: ln(10)≈2.3, ln(100)≈4.6</td>
+</tr>
+<tr>
+<td>L2 chuẩn hóa</td>
+<td>Chia vector cho độ dài của chính nó → độ dài bằng 1, so sánh công bằng</td>
+</tr>
+<tr>
+<td>tokenizer</td>
+<td>Bộ tách chữ thành từ ("B.S. 2019" → ["b.s.", "2019"])</td>
+</tr>
+<tr>
+<td>bigram / n-gram</td>
+<td>Cụm 2 (hay n) từ liền nhau được coi như một mục từ: "sql server"</td>
+</tr>
+<tr>
+<td>min_df</td>
+<td>Ngưỡng lọc: từ phải xuất hiện trong ≥N văn bản mới được vào từ vựng</td>
+</tr>
+<tr>
+<td>stop words</td>
+<td>Từ vô nghĩa bị loại sẵn: the, and, with...</td>
+</tr>
+<tr>
+<td>danh bạ (lexicon)</td>
+<td>Danh sách các từ được công nhận là kỹ năng</td>
+</tr>
+<tr>
+<td>regex</td>
+<td>Biểu thức chính quy — công thức mô tả mẫu chữ để tìm/thay thế</td>
+</tr>
+<tr>
+<td>lookaround</td>
+<td>Mảnh regex kiểm tra "đằng trước/sau KHÔNG phải..." mà không lấy ký tự đó</td>
+</tr>
+<tr>
+<td>chuỗi con (substring)</td>
+<td>Dãy ký tự nằm trong dãy khác; "cat" ⊂ "category"</td>
+</tr>
+<tr>
+<td>md5 / hash</td>
+<td>Hàm băm: văn bản → dãy ký tự nhận dạng duy nhất (12 ký tự đầu)</td>
+</tr>
+<tr>
+<td>PII</td>
+<td>Thông tin cá nhân (email, điện thoại) — được che thành [EMAIL]/[PHONE]/[URL]</td>
+</tr>
+<tr>
+<td>dedup</td>
+<td>Loại trùng lặp, giữ mỗi nội dung một bản</td>
+</tr>
+<tr>
+<td>ma trận thưa (sparse)</td>
+<td>Bảng số mà đa số ô là 0; máy chỉ lưu ô khác 0 cho nhẹ</td>
+</tr>
+<tr>
+<td>ground truth (GT)</td>
+<td>Đáp án chuẩn dùng để chấm — ở đây là block "Skills" CV thật viết</td>
+</tr>
+<tr>
+<td>held-out</td>
+<td>Phần dữ liệu giấu không cho học, chỉ dùng để thi</td>
+</tr>
+<tr>
+<td>seed (RandomState 42)</td>
+<td>Hạt giống số ngẫu nhiên cố định → xáo trộn tái lập được</td>
+</tr>
+<tr>
+<td>precision</td>
+<td>Trong những gì máy ghi ra, bao nhiêu % đúng</td>
+</tr>
+<tr>
+<td>recall</td>
+<td>Trong tổng số điều cần bắt, máy bắt được bao nhiêu %</td>
+</tr>
+<tr>
+<td>giao / hiệu tập (<code>&amp;</code> / <code>-</code>)</td>
+<td>Phần chung / phần dư thừa giữa hai danh sách</td>
+</tr>
+<tr>
+<td>overfitting</td>
+<td>Học vẹt: ghi nhớ dữ liệu cũ, làm tệ trên dữ liệu mới</td>
+</tr>
+<tr>
+<td>baseline</td>
+<td>Mốc chuẩn để so sánh các cải tiến về sau</td>
+</tr>
+<tr>
+<td>JSON</td>
+<td>Định dạng dữ liệu có cấu trúc {khóa: giá trị}, máy lẫn người đều đọc được</td>
+</tr>
+<tr>
+<td>null</td>
+<td>Giá trị "không có" — trung thực hơn việc bịa số 0</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h1>Chương 11 — Câu hỏi ôn tập</h1>
+<p><strong>Câu 1.</strong> Vì sao "peachtree" (2 lần) được điểm cao hơn "accounting" (7 lần)?</p>
+<blockquote>
+<p><em>Đáp án:</em> điểm = TF×IDF. "accounting" xuất hiện trong 310/994 văn bản → idf thấp (2.16);
+"peachtree" chỉ 15/994 → idf cao (5.13). Độ hiếm bù quá mức đếm: 1.69×5.13 &gt; 2.95×2.16.
+Bài học: TF-IDF đo <strong>đặc trưng</strong>, không đo <strong>số lượng</strong>.</p>
+</blockquote>
+<p><strong>Câu 2.</strong> <code>topk_of</code> dừng ở 25 skill và lọc theo danh bạ — nhưng vẫn cần máy dò scan thứ hai
+là vì 3 lý do nào?</p>
+<blockquote>
+<p><em>Đáp án:</em> (1) TF-IDF chỉ nhận từ nguyên vẹn — "experienced" không sinh "experience";
+(2) <code>min_df=3</code> loại từ vựng các kỹ năng hiếm (xuất hiện &lt;3 văn bản); (3) kỹ năng có trong CV
+nhưng không lọt top 200 điểm sẽ bị máy 1 bỏ sót. Scan quét toàn văn theo danh bạ nên bắt
+được cả 3 trường hợp.</p>
+</blockquote>
+<p><strong>Câu 3.</strong> Regex scan dùng <code>(?&lt;![a-z0-9])...(?![a-z0-9])</code> thay vì <code>\b</code>. <code>\b</code> hỏng với kỹ năng
+nào, vì sao?</p>
+<blockquote>
+<p><em>Đáp án:</em> kỹ năng chứa ký tự đặc biệt, ví dụ "c++": sau <code>+</code> là <code>,</code> — cả hai đều không phải
+"ký tự từ" nên không tồn tại biên từ nào ở đó → <code>\bc\+\+\b</code> không khớp bao giờ. Lookaround
+chỉ yêu cầu "kế bên không phải chữ/số" nên dấu phẩy được thông qua.</p>
+</blockquote>
+<p><strong>Câu 4.</strong> Trong <code>heldout_eval</code>, vì sao <code>fit</code> chỉ chạy trên 514 CV mà <code>transform</code> chạy trên 129
+CV còn lại? Nếu sơ suất fit lên cả 643 thì hậu quả gì?</p>
+<blockquote>
+<p><em>Đáp án:</em> đề thi phải chưa từng thấy: danh bạ và bảng idf dựng từ 514 CV học, rồi <em>dùng
+nguyên bảng đó</em> chấm 129 đề thi. Fit nhầm lên cả bộ → từ kỹ năng của đề thi có mặt trong
+danh bạ/idf từ đầu → máy "nhìn đề trước" (overfitting), precision rơi từ 39.75% về 5.00% —
+lỗi đã gặp thật trong quá trình làm.</p>
+</blockquote>
+<p><strong>Câu 5.</strong> CV ngoài bộ test: 94.3% có ≥1 kỹ năng nhưng 57 CV = 0. Điều tra ra nguyên nhân gì,
+và đó là lỗi của thuật toán hay dữ liệu?</p>
+<blockquote>
+<p><em>Đáp án:</em> 57 CV đó là file PDF hỏng khi trích text: trung bình ~1.237 ký tự (bình thường
+~3.823), mất dấu tiếng Việt, ký tự lạ <code>\uf0b1</code> của font nhúng. Lỗi <strong>đầu vào</strong>, không phải
+thuật toán — pipeline được thiết kế in rõ trường hợp zero để không giấu lỗi.</p>
+</blockquote>
+<hr />
+<p><em>Hết tài liệu. Số liệu trong bài tái lập bằng <code>python data/extract_json.py</code> từ thư mục gốc
+project; chi tiết từng script trong <code>data/README.md</code>.</em></p></body></html>

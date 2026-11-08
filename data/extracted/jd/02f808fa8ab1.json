@@ -1,0 +1,39 @@
+{
+  "doc_id": "02f808fa8ab1",
+  "job_title": null,
+  "required_skills": [
+    "rtos",
+    "overview",
+    "cad",
+    "schematics",
+    "design",
+    "type",
+    "compensation",
+    "vision",
+    "electronics",
+    "linux",
+    "office",
+    "benefits",
+    "production"
+  ],
+  "preferred_skills": [
+    "assembly",
+    "cable",
+    "hardware support",
+    "soldering",
+    "data acquisition",
+    "labview",
+    "prototypes",
+    "prototype",
+    "debugging",
+    "mechanical",
+    "electrical engineering",
+    "software development",
+    "python",
+    "writing",
+    "build",
+    "designing",
+    "troubleshooting"
+  ],
+  "required_years": null
+}

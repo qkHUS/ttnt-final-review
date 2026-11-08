@@ -1,0 +1,22 @@
+{
+  "doc_id": "199805afe9d0",
+  "name": "ABOUT ME",
+  "skills": [
+    "database design",
+    "stored procedures",
+    "optimization",
+    "sql server",
+    "developer",
+    "research",
+    "software",
+    "data",
+    ".net framework",
+    "supply chain management"
+  ],
+  "experience_years": null,
+  "education": {
+    "degree": null,
+    "major": null,
+    "university": null
+  }
+}

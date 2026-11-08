@@ -1,0 +1,38 @@
+{
+  "doc_id": "23b5f3eca198",
+  "name": null,
+  "skills": [
+    "api gateway",
+    "redis",
+    "spring boot",
+    "oop",
+    "linux",
+    "message",
+    "oracle database",
+    "hibernate",
+    "angular",
+    "team leader",
+    "kafka",
+    "mongodb",
+    "react",
+    "smart",
+    "docker",
+    "software engineering",
+    "mysql",
+    "logic",
+    "javascript",
+    "email",
+    "scr",
+    "k8s",
+    "java",
+    "agile",
+    "ci/cd",
+    ".net"
+  ],
+  "experience_years": null,
+  "education": {
+    "degree": "Diploma",
+    "major": "Software Engineering",
+    "university": null
+  }
+}

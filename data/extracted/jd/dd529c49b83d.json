@@ -1,0 +1,29 @@
+{
+  "doc_id": "dd529c49b83d",
+  "job_title": "Hi",
+  "required_skills": [
+    "datastage",
+    "oracle",
+    "sql",
+    "unix",
+    "engineer"
+  ],
+  "preferred_skills": [
+    "cloud",
+    "azure",
+    "aws",
+    "data warehouses",
+    "data modelling",
+    "linkedin",
+    "redshift",
+    "http",
+    "svn",
+    "git",
+    "analytics",
+    "email",
+    "agile",
+    "engineering",
+    "version control systems"
+  ],
+  "required_years": null
+}

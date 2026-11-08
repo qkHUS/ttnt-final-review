@@ -1,0 +1,37 @@
+{
+  "doc_id": "08fcc7d20f58",
+  "job_title": "Data Engineer",
+  "required_skills": [
+    "data modeling",
+    "data base",
+    "automate",
+    "structured",
+    "sql queries",
+    "build",
+    "writing",
+    "data science",
+    "transition",
+    "etl",
+    "optimization",
+    "best practices",
+    "san",
+    "features",
+    "teams",
+    "design",
+    "engineer",
+    "analytics",
+    "development"
+  ],
+  "preferred_skills": [
+    "data governance",
+    "airflow",
+    "github",
+    "object oriented",
+    "python",
+    "email",
+    "bachelor's degree",
+    "data visualization tools",
+    "object-oriented programming"
+  ],
+  "required_years": null
+}

@@ -1,0 +1,30 @@
+{
+  "doc_id": "d7d47dde1fab",
+  "job_title": null,
+  "required_skills": [
+    "dimensional modeling",
+    "airflow",
+    "cloud services",
+    "rds",
+    "aws cloud",
+    "redshift",
+    "emr",
+    "ec2",
+    "nosql",
+    "big data",
+    "data modeling",
+    "sql",
+    "business intelligence",
+    "data warehouse",
+    "logic",
+    "python",
+    "databases",
+    "programming",
+    "build",
+    "processing",
+    "access",
+    "engineering"
+  ],
+  "preferred_skills": [],
+  "required_years": 10
+}
